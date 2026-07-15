@@ -44,9 +44,9 @@ The references define the interaction density and output capabilities. The appli
 
 ### Outlines
 
-- Multiple outline layers.
+- Zero to twelve outline layers, exceeding the required ten-layer minimum.
 - Enable/disable, add, remove, and reorder controls.
-- Color, width, opacity, and outside/center placement controls.
+- Per-layer color, thickness, opacity, and `outside` / `center` / `inside` placement controls.
 - Layer ordering must produce a result comparable to the reference SVG.
 
 ### Preview and Export
@@ -57,6 +57,7 @@ The references define the interaction density and output capabilities. The appli
 - SVG download with a safe filename.
 - Copy SVG source to the clipboard.
 - Reset to the reference-inspired starter preset.
+- Deterministic serialization: identical visible settings must produce identical final SVG file content, excluding comments.
 
 ## Responsive Requirements
 
@@ -80,6 +81,7 @@ The references define the interaction density and output capabilities. The appli
 - The exported file opens as valid SVG and retains the visible style.
 - Font changes visibly update the preview and the SVG markup.
 - At least three gradient stops and two outlines can be active at once.
+- The editor supports no outline and at least ten concurrent outline layers.
+- Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.
-

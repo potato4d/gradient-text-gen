@@ -26,6 +26,7 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 
 - Measure the text in the browser to derive a padded SVG view box.
 - Render the outermost outlines first as repeated SVG `<text>` elements.
+- Build outside rings from cumulative thicknesses, use native centered strokes for `center`, and clip doubled strokes to glyph shapes for `inside`.
 - Render fill layers above outlines as repeated `<text>` elements with gradient or solid paint.
 - Create one SVG `<linearGradient>` definition per enabled gradient fill.
 - Use `paint-order: stroke fill` so wide strokes do not eat into the fill.
@@ -34,6 +35,8 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 ## Export Strategy
 
 - Serialize a standalone SVG string from the editor document.
+- Generate stable paint and clip IDs from rendered array positions rather than transient editor IDs.
+- Omit timestamps, random values, comments, and operation history so equivalent visible settings are byte-identical.
 - Include the selected CSS font-family value and typography attributes on every text node.
 - Escape text content before serialization.
 - Use a Blob URL for download and revoke it immediately afterward.
@@ -52,7 +55,8 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 
 ## Testing Strategy
 
-- Unit tests for color normalization, gradient coordinate math, text escaping, and SVG serialization.
+- Unit tests for color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
+- A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
 - Production build verification.
 - Browser checks for the complete edit-to-export journey.
 - Visual captures at desktop and 390 x 844 mobile viewports.
