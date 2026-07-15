@@ -5,12 +5,13 @@
 Run the full local verification set from the repository root:
 
 ```bash
+npm run typecheck
 npm test
 npm run build
 git diff --check
 ```
 
-The Node test suite covers color normalization, XML escaping, gradient geometry, the reference preset, deterministic output, zero and twelve outline layers, all three outline placements, and Japanese text.
+The TypeScript test suite covers CLI parsing and configuration, color normalization, XML escaping, gradient geometry, the reference preset, deterministic output, zero and twelve outline layers, all three outline placements, and Japanese text.
 
 ## Deterministic SVG Requirement
 
@@ -25,6 +26,8 @@ The serializer therefore:
 - uses one serializer for preview, clipboard, and download actions.
 
 The automated test `equivalent settings serialize to byte-identical final SVG content` creates two equivalent documents with different internal IDs and compares the complete SVG strings with strict equality.
+
+The CLI test suite repeats the same guarantee for two documents created from equivalent CLI options. The smoke check writes two SVG files with identical options and compares them byte for byte.
 
 ## Browser Verification Matrix
 
@@ -57,4 +60,3 @@ Browser checks were performed in the Codex in-app browser against the Vite devel
 ## Known Font Portability Constraint
 
 The exported SVG includes the selected font-family stack, weight, size, spacing, and line height. Exact glyph shapes depend on fonts installed on the viewing system. Embedding commercial or system font binaries, or converting arbitrary CJK and emoji glyphs to paths, is outside the current client-only scope.
-

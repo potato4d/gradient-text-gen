@@ -2,6 +2,7 @@
 
 ## Technology
 
+- Strict TypeScript for the application, shared document model, serializer, tests, Vite configuration, and CLI.
 - React 19 for stateful UI composition.
 - Vite 6 for local development and production builds.
 - `lucide-react` for consistent interface icons, as required by the product brief.
@@ -21,6 +22,8 @@ document
 ```
 
 Every visible control updates this document. Preview markup and downloaded SVG markup are produced from the same state to avoid export drift.
+
+The CLI starts with the same document preset, applies validated command-line or JSON overrides, and calls the same serializer. Transient IDs are never included in SVG output.
 
 ## Rendering Strategy
 
@@ -52,11 +55,16 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 - `ColorStopEditor`: stop rail, selected color values, add/remove controls.
 - `OutlineEditor`: placement, width, opacity, and color controls.
 - `ExportActions`: reset, clipboard, and SVG download actions.
+- `cli.ts`: argument/config validation, document overrides, and file/stdout output.
+- `editorModel.ts`: shared strict types and document factories.
+- `svg.ts`: environment-independent deterministic layout and serialization.
 
 ## Testing Strategy
 
-- Unit tests for color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
+- TypeScript compilation is a release gate through `npm run typecheck`.
+- Unit tests for CLI parsing, color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
 - A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
+- CLI smoke checks generate the same file twice and compare it byte for byte.
 - Production build verification.
 - Browser checks for the complete edit-to-export journey.
 - Visual captures at desktop and 390 x 844 mobile viewports.

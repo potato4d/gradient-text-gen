@@ -1,6 +1,62 @@
 export const MAX_OUTLINES = 12;
 
-export const FONT_OPTIONS = [
+export type FillType = "linear" | "solid";
+export type OutlinePlacement = "outside" | "center" | "inside";
+export type TextAlignment = "left" | "center" | "right";
+
+export interface FontOption {
+  id: string;
+  label: string;
+  family: string;
+}
+
+export interface GradientStop {
+  id: string;
+  color: string;
+  offset: number;
+  opacity: number;
+}
+
+export interface FillLayer {
+  id: string;
+  enabled: boolean;
+  name: string;
+  type: FillType;
+  color: string;
+  opacity: number;
+  angle: number;
+  stops: GradientStop[];
+}
+
+export interface OutlineLayer {
+  id: string;
+  enabled: boolean;
+  name: string;
+  color: string;
+  thickness: number;
+  opacity: number;
+  placement: OutlinePlacement;
+}
+
+export interface TypographySettings {
+  fontId: string;
+  fontFamily: string;
+  fontWeight: number;
+  fontSize: number;
+  letterSpacing: number;
+  lineHeight: number;
+  align: TextAlignment;
+}
+
+export interface EditorDocument {
+  version: 1;
+  text: string;
+  typography: TypographySettings;
+  fills: FillLayer[];
+  outlines: OutlineLayer[];
+}
+
+export const FONT_OPTIONS: FontOption[] = [
   {
     id: "heavy-gothic",
     label: "Heavy Gothic",
@@ -33,21 +89,25 @@ export const FONT_OPTIONS = [
   },
 ];
 
-const uid = (prefix) => {
+const uid = (prefix: string): string => {
   const value =
     globalThis.crypto?.randomUUID?.() ??
     `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
   return `${prefix}-${value}`;
 };
 
-export const createStop = (color = "#FFFFFF", offset = 50, opacity = 100) => ({
+export const createStop = (
+  color = "#FFFFFF",
+  offset = 50,
+  opacity = 100,
+): GradientStop => ({
   id: uid("stop"),
   color,
   offset,
   opacity,
 });
 
-export const createFill = (index = 0) => ({
+export const createFill = (index = 0): FillLayer => ({
   id: uid("fill"),
   enabled: true,
   name: `Fill ${index + 1}`,
@@ -58,7 +118,7 @@ export const createFill = (index = 0) => ({
   stops: [createStop("#6F78FF", 0), createStop("#F4FF77", 100)],
 });
 
-export const createOutline = (index = 0) => ({
+export const createOutline = (index = 0): OutlineLayer => ({
   id: uid("outline"),
   enabled: true,
   name: `Outline ${index + 1}`,
@@ -68,7 +128,7 @@ export const createOutline = (index = 0) => ({
   placement: "outside",
 });
 
-const REFERENCE_STOPS = [
+const REFERENCE_STOPS: ReadonlyArray<readonly [string, number]> = [
   ["#E9F62A", 0],
   ["#FFF5A0", 27],
   ["#EED991", 48],
@@ -76,7 +136,7 @@ const REFERENCE_STOPS = [
   ["#F1BC15", 100],
 ];
 
-export const createInitialDocument = () => ({
+export const createInitialDocument = (): EditorDocument => ({
   version: 1,
   text: "ライゼオル",
   typography: {
@@ -122,10 +182,11 @@ export const createInitialDocument = () => ({
   ],
 });
 
-export const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value)));
+export const clamp = (value: number | string, min: number, max: number): number =>
+  Math.min(max, Math.max(min, Number(value)));
 
-export function normalizeHex(value, fallback = "#000000") {
-  const normalized = String(value).trim().toUpperCase();
+export function normalizeHex(value: string, fallback = "#000000"): string {
+  const normalized = value.trim().toUpperCase();
   if (/^#[0-9A-F]{6}$/.test(normalized)) return normalized;
   if (/^#[0-9A-F]{3}$/.test(normalized)) {
     return `#${normalized
@@ -137,7 +198,7 @@ export function normalizeHex(value, fallback = "#000000") {
   return fallback;
 }
 
-export function gradientCss(stops, angle = 90) {
+export function gradientCss(stops: GradientStop[], angle = 90): string {
   const list = [...stops]
     .sort((a, b) => a.offset - b.offset)
     .map(
@@ -150,7 +211,11 @@ export function gradientCss(stops, angle = 90) {
   return `linear-gradient(${angle}deg, ${list})`;
 }
 
-export function swapById(items, id, direction) {
+export function swapById<T extends { id: string }>(
+  items: T[],
+  id: string,
+  direction: -1 | 1,
+): T[] {
   const index = items.findIndex((item) => item.id === id);
   const nextIndex = index + direction;
   if (index < 0 || nextIndex < 0 || nextIndex >= items.length) return items;
@@ -159,7 +224,10 @@ export function swapById(items, id, direction) {
   return copy;
 }
 
-export function insertStop(stops) {
+export function insertStop(stops: GradientStop[]): {
+  stop: GradientStop;
+  stops: GradientStop[];
+} {
   const ordered = [...stops].sort((a, b) => a.offset - b.offset);
   let left = ordered[0] ?? createStop("#FFFFFF", 0);
   let right = ordered[ordered.length - 1] ?? createStop("#000000", 100);

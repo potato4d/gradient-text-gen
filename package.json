@@ -1,12 +1,19 @@
 {
   "name": "gradient-text-gen",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "gradient-text-gen": "dist-cli/cli.js"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "test": "node --test src/svg.test.js",
+    "build": "npm run build:web && npm run build:cli",
+    "build:web": "vite build",
+    "build:cli": "tsc -p tsconfig.cli.json",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.cli.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
+    "cli": "tsx src/cli.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,5 +22,12 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "vite": "6.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.3"
   }
 }

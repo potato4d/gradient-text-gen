@@ -13,3 +13,5 @@ When implementing from a selected generated mock, treat that image as the source
 - Use the supplied color-editor screenshots for control density and interaction patterns.
 - Use `/Users/potato4d/Desktop/Frame 2.svg` as the output-style reference for layered gradient text and outlines.
 - Support desktop and 390 px-wide mobile layouts without horizontal page overflow.
+- Keep the application, shared SVG model, tests, and CLI in strict TypeScript.
+- The web editor and CLI must share the same deterministic SVG serializer.

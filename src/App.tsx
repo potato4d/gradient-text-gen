@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -15,6 +16,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   FONT_OPTIONS,
   MAX_OUTLINES,
@@ -26,10 +28,21 @@ import {
   insertStop,
   normalizeHex,
   swapById,
+  type EditorDocument,
+  type FillLayer,
+  type FillType,
+  type GradientStop,
+  type OutlineLayer,
+  type OutlinePlacement,
+  type TypographySettings,
 } from "./editorModel.js";
-import { browserMeasureLine, measureDocument, serializeSvg } from "./svg.js";
+import { measureDocument, serializeSvg, type SvgLayout } from "./svg.js";
 
-function IconButton({ label, children, className = "", ...props }) {
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  label: string;
+}
+
+function IconButton({ label, children, className = "", ...props }: IconButtonProps) {
   return (
     <button className={`icon-button ${className}`} type="button" aria-label={label} title={label} {...props}>
       {children}
@@ -37,7 +50,13 @@ function IconButton({ label, children, className = "", ...props }) {
   );
 }
 
-function Toggle({ checked, onChange, label }) {
+interface ToggleProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+}
+
+function Toggle({ checked, onChange, label }: ToggleProps) {
   return (
     <button
       className="toggle"
@@ -52,8 +71,14 @@ function Toggle({ checked, onChange, label }) {
   );
 }
 
-function HexField({ value, onChange, label }) {
-  const [draft, setDraft] = useState(value);
+interface HexFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}
+
+function HexField({ value, onChange, label }: HexFieldProps) {
+  const [draft, setDraft] = useState<string>(value);
 
   useEffect(() => setDraft(value), [value]);
 
@@ -87,7 +112,12 @@ function HexField({ value, onChange, label }) {
   );
 }
 
-function FieldLabel({ children, value }) {
+interface FieldLabelProps {
+  children: ReactNode;
+  value?: ReactNode;
+}
+
+function FieldLabel({ children, value }: FieldLabelProps) {
   return (
     <div className="field-label">
       <span>{children}</span>
@@ -96,7 +126,25 @@ function FieldLabel({ children, value }) {
   );
 }
 
-function RangeField({ label, value, min, max, step = 1, suffix = "", onChange }) {
+interface RangeFieldProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (value: number) => void;
+}
+
+function RangeField({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+}: RangeFieldProps) {
   return (
     <label className="range-field">
       <FieldLabel value={`${value}${suffix}`}>{label}</FieldLabel>
@@ -113,7 +161,21 @@ function RangeField({ label, value, min, max, step = 1, suffix = "", onChange })
   );
 }
 
-function SectionHeading({ icon: Icon, title, description, action, headingId }) {
+interface SectionHeadingProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: ReactNode;
+  headingId: string;
+}
+
+function SectionHeading({
+  icon: Icon,
+  title,
+  description,
+  action,
+  headingId,
+}: SectionHeadingProps) {
   return (
     <div className="section-heading">
       <div className="section-title-wrap">
@@ -130,10 +192,15 @@ function SectionHeading({ icon: Icon, title, description, action, headingId }) {
   );
 }
 
-function TextControls({ editor, onChange }) {
+interface TextControlsProps {
+  editor: EditorDocument;
+  onChange: (editor: EditorDocument) => void;
+}
+
+function TextControls({ editor, onChange }: TextControlsProps) {
   const { typography } = editor;
 
-  const updateTypography = (patch) =>
+  const updateTypography = (patch: Partial<TypographySettings>) =>
     onChange({ ...editor, typography: { ...typography, ...patch } });
 
   return (
@@ -217,7 +284,23 @@ function TextControls({ editor, onChange }) {
   );
 }
 
-function LayerActions({ item, index, count, onMove, onRemove, noun }) {
+interface LayerActionsProps {
+  item: { name: string };
+  index: number;
+  count: number;
+  onMove: (direction: -1 | 1) => void;
+  onRemove: () => void;
+  noun: string;
+}
+
+function LayerActions({
+  item,
+  index,
+  count,
+  onMove,
+  onRemove,
+  noun,
+}: LayerActionsProps) {
   return (
     <div className="layer-actions">
       <IconButton label={`Move ${noun} up`} disabled={index === 0} onClick={() => onMove(-1)}>
@@ -233,8 +316,15 @@ function LayerActions({ item, index, count, onMove, onRemove, noun }) {
   );
 }
 
-function FillEditor({ fill, onChange }) {
-  const [selectedStopId, setSelectedStopId] = useState(fill.stops[0]?.id);
+interface FillEditorProps {
+  fill: FillLayer;
+  onChange: (fill: FillLayer) => void;
+}
+
+function FillEditor({ fill, onChange }: FillEditorProps) {
+  const [selectedStopId, setSelectedStopId] = useState<string | undefined>(
+    fill.stops[0]?.id,
+  );
   const selectedStop = fill.stops.find((stop) => stop.id === selectedStopId) ?? fill.stops[0];
 
   useEffect(() => {
@@ -243,7 +333,7 @@ function FillEditor({ fill, onChange }) {
     }
   }, [fill.stops, selectedStopId]);
 
-  const updateStop = (id, patch) => {
+  const updateStop = (id: string, patch: Partial<GradientStop>) => {
     onChange({
       ...fill,
       stops: fill.stops.map((stop) => (stop.id === id ? { ...stop, ...patch } : stop)),
@@ -259,10 +349,12 @@ function FillEditor({ fill, onChange }) {
   return (
     <div className="layer-editor">
       <div className="segmented-control" aria-label="Fill type">
-        {[
+        {(
+          [
           ["linear", "Gradient"],
           ["solid", "Solid"],
-        ].map(([type, label]) => (
+          ] satisfies Array<[FillType, string]>
+        ).map(([type, label]) => (
           <button
             key={type}
             type="button"
@@ -387,8 +479,15 @@ function FillEditor({ fill, onChange }) {
   );
 }
 
-function FillPanel({ fills, selectedId, onSelect, onChange }) {
-  const updateFill = (id, nextFill) =>
+interface FillPanelProps {
+  fills: FillLayer[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onChange: (fills: FillLayer[]) => void;
+}
+
+function FillPanel({ fills, selectedId, onSelect, onChange }: FillPanelProps) {
+  const updateFill = (id: string, nextFill: FillLayer) =>
     onChange(fills.map((fill) => (fill.id === id ? nextFill : fill)));
 
   return (
@@ -459,7 +558,12 @@ function FillPanel({ fills, selectedId, onSelect, onChange }) {
   );
 }
 
-function OutlineEditor({ outline, onChange }) {
+interface OutlineEditorProps {
+  outline: OutlineLayer;
+  onChange: (outline: OutlineLayer) => void;
+}
+
+function OutlineEditor({ outline, onChange }: OutlineEditorProps) {
   return (
     <div className="layer-editor outline-editor">
       <div className="control-grid control-grid-two outline-top-grid">
@@ -475,7 +579,9 @@ function OutlineEditor({ outline, onChange }) {
           <span>Placement</span>
           <select
             value={outline.placement}
-            onChange={(event) => onChange({ ...outline, placement: event.target.value })}
+            onChange={(event) =>
+              onChange({ ...outline, placement: event.target.value as OutlinePlacement })
+            }
           >
             <option value="outside">Outside</option>
             <option value="center">Center</option>
@@ -510,8 +616,20 @@ function OutlineEditor({ outline, onChange }) {
   );
 }
 
-function OutlinePanel({ outlines, selectedId, onSelect, onChange }) {
-  const updateOutline = (id, nextOutline) =>
+interface OutlinePanelProps {
+  outlines: OutlineLayer[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onChange: (outlines: OutlineLayer[]) => void;
+}
+
+function OutlinePanel({
+  outlines,
+  selectedId,
+  onSelect,
+  onChange,
+}: OutlinePanelProps) {
+  const updateOutline = (id: string, nextOutline: OutlineLayer) =>
     onChange(outlines.map((outline) => (outline.id === id ? nextOutline : outline)));
 
   return (
@@ -590,7 +708,27 @@ function OutlinePanel({ outlines, selectedId, onSelect, onChange }) {
   );
 }
 
-function PreviewStage({ markup, layout, background, onBackgroundChange, zoom, onZoomChange, isEmpty }) {
+type PreviewBackground = "transparent" | "light" | "dark";
+
+interface PreviewStageProps {
+  markup: string;
+  layout: SvgLayout;
+  background: PreviewBackground;
+  onBackgroundChange: (background: PreviewBackground) => void;
+  zoom: number;
+  onZoomChange: (zoom: number) => void;
+  isEmpty: boolean;
+}
+
+function PreviewStage({
+  markup,
+  layout,
+  background,
+  onBackgroundChange,
+  zoom,
+  onZoomChange,
+  isEmpty,
+}: PreviewStageProps) {
   return (
     <section className="preview-pane" aria-labelledby="preview-heading">
       <div className="preview-toolbar">
@@ -600,7 +738,7 @@ function PreviewStage({ markup, layout, background, onBackgroundChange, zoom, on
         </div>
         <div className="preview-controls">
           <div className="surface-control" aria-label="Preview background">
-            {["transparent", "light", "dark"].map((surface) => (
+            {(["transparent", "light", "dark"] satisfies PreviewBackground[]).map((surface) => (
               <button
                 key={surface}
                 type="button"
@@ -641,7 +779,12 @@ function PreviewStage({ markup, layout, background, onBackgroundChange, zoom, on
   );
 }
 
-function ActionButton({ icon: Icon, children, primary = false, ...props }) {
+interface ActionButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
+  icon: LucideIcon;
+  primary?: boolean;
+}
+
+function ActionButton({ icon: Icon, children, primary = false, ...props }: ActionButtonProps) {
   return (
     <button className={`action-button ${primary ? "primary" : ""}`} type="button" {...props}>
       <Icon size={17} />
@@ -653,14 +796,18 @@ function ActionButton({ icon: Icon, children, primary = false, ...props }) {
 export function App() {
   const initial = useRef(createInitialDocument()).current;
   const [editor, setEditor] = useState(initial);
-  const [selectedFillId, setSelectedFillId] = useState(initial.fills[0]?.id ?? null);
-  const [selectedOutlineId, setSelectedOutlineId] = useState(initial.outlines[0]?.id ?? null);
-  const [background, setBackground] = useState("transparent");
+  const [selectedFillId, setSelectedFillId] = useState<string | null>(
+    initial.fills[0]?.id ?? null,
+  );
+  const [selectedOutlineId, setSelectedOutlineId] = useState<string | null>(
+    initial.outlines[0]?.id ?? null,
+  );
+  const [background, setBackground] = useState<PreviewBackground>("transparent");
   const [zoom, setZoom] = useState(100);
   const [notice, setNotice] = useState("");
 
-  const markup = useMemo(() => serializeSvg(editor, browserMeasureLine), [editor]);
-  const layout = useMemo(() => measureDocument(editor, browserMeasureLine), [editor]);
+  const markup = useMemo(() => serializeSvg(editor), [editor]);
+  const layout = useMemo(() => measureDocument(editor), [editor]);
   const isEmpty = editor.text.trim().length === 0;
 
   useEffect(() => {

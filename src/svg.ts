@@ -1,6 +1,24 @@
-import { clamp } from "./editorModel.js";
+import { clamp, type EditorDocument, type TypographySettings } from "./editorModel.js";
 
-export function escapeXml(value) {
+export interface GradientVector {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface SvgLayout {
+  width: number;
+  height: number;
+  padding: number;
+  baseline: number;
+  lineHeight: number;
+  lines: string[];
+}
+
+export type LineMeasure = (line: string, typography: TypographySettings) => number;
+
+export function escapeXml(value: unknown): string {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -9,8 +27,8 @@ export function escapeXml(value) {
     .replaceAll("'", "&apos;");
 }
 
-export function gradientVector(angle) {
-  const radians = ((Number(angle) - 90) * Math.PI) / 180;
+export function gradientVector(angle: number): GradientVector {
+  const radians = ((angle - 90) * Math.PI) / 180;
   const dx = Math.cos(radians);
   const dy = Math.sin(radians);
   const scale = 50 / Math.max(Math.abs(dx), Math.abs(dy), 0.0001);
@@ -22,22 +40,35 @@ export function gradientVector(angle) {
   };
 }
 
-function approximateLineWidth(line, typography) {
-  const glyphs = Array.from(line || " ");
-  const weightedLength = glyphs.reduce((total, glyph) => {
-    return total + (/^[\u0000-\u00ff]$/.test(glyph) ? 0.64 : 1);
-  }, 0);
-  return Math.max(1, weightedLength * typography.fontSize + (glyphs.length - 1) * typography.letterSpacing);
+function glyphWidthFactor(glyph: string): number {
+  if (/^\s$/.test(glyph)) return 0.35;
+  if (/^[ilI1|.,'`:;!]$/.test(glyph)) return 0.34;
+  if (/^[mwMW@%&QO]$/.test(glyph)) return 0.94;
+  if (/^[\u0000-\u00ff]$/.test(glyph)) return 0.67;
+  return 1;
 }
 
-export function measureDocument(editor, measureLine) {
+export const deterministicLineMeasure: LineMeasure = (line, typography) => {
+  const glyphs = Array.from(line || " ");
+  const weightedLength = glyphs.reduce(
+    (total, glyph) => total + glyphWidthFactor(glyph),
+    0,
+  );
+  return Math.max(
+    1,
+    weightedLength * typography.fontSize +
+      Math.max(0, glyphs.length - 1) * typography.letterSpacing,
+  );
+};
+
+export function measureDocument(
+  editor: EditorDocument,
+  measureLine: LineMeasure = deterministicLineMeasure,
+): SvgLayout {
   const lines = editor.text.split("\n");
   const typography = editor.typography;
   const lineHeight = typography.fontSize * typography.lineHeight;
-  const widths = lines.map((line) => {
-    if (measureLine) return measureLine(line || " ", typography);
-    return approximateLineWidth(line, typography);
-  });
+  const widths = lines.map((line) => measureLine(line || " ", typography));
   const outsideThickness = editor.outlines
     .filter((outline) => outline.enabled && outline.placement === "outside")
     .reduce((total, outline) => total + clamp(outline.thickness, 0, 80), 0);
@@ -60,7 +91,7 @@ export function measureDocument(editor, measureLine) {
   };
 }
 
-function textLines(layout) {
+function textLines(layout: SvgLayout): string {
   return layout.lines
     .map((line, index) => {
       const y = layout.baseline + index * layout.lineHeight;
@@ -69,7 +100,7 @@ function textLines(layout) {
     .join("");
 }
 
-function textAttributes(editor) {
+function textAttributes(editor: EditorDocument): string {
   const { typography } = editor;
   return [
     `font-family="${escapeXml(typography.fontFamily)}"`,
@@ -82,7 +113,7 @@ function textAttributes(editor) {
   ].join(" ");
 }
 
-function fillDefinitions(editor) {
+function fillDefinitions(editor: EditorDocument): string {
   return editor.fills
     .filter((fill) => fill.enabled && fill.type === "linear")
     .map((fill, fillIndex) => {
@@ -101,12 +132,19 @@ function fillDefinitions(editor) {
     .join("");
 }
 
-function outsideOutlineNodes(editor, layout, attributes, lines) {
+function outsideOutlineNodes(
+  editor: EditorDocument,
+  attributes: string,
+  lines: string,
+): string {
   const outlines = editor.outlines.filter(
-    (outline) => outline.enabled && outline.placement === "outside" && outline.thickness > 0,
+    (outline) =>
+      outline.enabled && outline.placement === "outside" && outline.thickness > 0,
   );
   const cumulative = outlines.map((_, index) =>
-    outlines.slice(0, index + 1).reduce((total, outline) => total + Number(outline.thickness), 0),
+    outlines
+      .slice(0, index + 1)
+      .reduce((total, outline) => total + outline.thickness, 0),
   );
   return outlines
     .map((outline, index) => ({ outline, strokeWidth: cumulative[index] * 2 }))
@@ -120,12 +158,13 @@ function outsideOutlineNodes(editor, layout, attributes, lines) {
     .join("");
 }
 
-function fillNodes(editor, attributes, lines) {
+function fillNodes(editor: EditorDocument, attributes: string, lines: string): string {
   let gradientIndex = 0;
   return editor.fills
     .filter((fill) => fill.enabled)
     .map((fill) => {
-      const paint = fill.type === "linear" ? `url(#fill-${gradientIndex++})` : escapeXml(fill.color);
+      const paint =
+        fill.type === "linear" ? `url(#fill-${gradientIndex++})` : escapeXml(fill.color);
       return `<text ${attributes} fill="${paint}" fill-opacity="${(
         clamp(fill.opacity, 0, 100) / 100
       ).toFixed(3)}" stroke="none">${lines}</text>`;
@@ -133,33 +172,39 @@ function fillNodes(editor, attributes, lines) {
     .join("");
 }
 
-function foregroundOutlineNodes(editor, attributes, lines) {
+function foregroundOutlineNodes(
+  editor: EditorDocument,
+  attributes: string,
+  lines: string,
+): string {
   return editor.outlines
     .filter(
       (outline) =>
-        outline.enabled && outline.placement !== "outside" && Number(outline.thickness) > 0,
+        outline.enabled && outline.placement !== "outside" && outline.thickness > 0,
     )
     .map((outline, index) => {
       const opacity = (clamp(outline.opacity, 0, 100) / 100).toFixed(3);
       if (outline.placement === "inside") {
         return `<g clip-path="url(#inside-clip)"><text ${attributes} fill="none" stroke="${escapeXml(
           outline.color,
-        )}" stroke-width="${Number(outline.thickness) * 2}" stroke-opacity="${opacity}" data-placement="inside" data-layer="${index}">${lines}</text></g>`;
+        )}" stroke-width="${outline.thickness * 2}" stroke-opacity="${opacity}" data-placement="inside" data-layer="${index}">${lines}</text></g>`;
       }
-      return `<text ${attributes} fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${Number(
-        outline.thickness,
-      )}" stroke-opacity="${opacity}" data-placement="center" data-layer="${index}">${lines}</text>`;
+      return `<text ${attributes} fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${outline.thickness}" stroke-opacity="${opacity}" data-placement="center" data-layer="${index}">${lines}</text>`;
     })
     .join("");
 }
 
-export function serializeSvg(editor, measureLine) {
+export function serializeSvg(
+  editor: EditorDocument,
+  measureLine: LineMeasure = deterministicLineMeasure,
+): string {
   const layout = measureDocument(editor, measureLine);
   const attributes = textAttributes(editor);
   const lines = textLines(layout);
   const definitions = fillDefinitions(editor);
   const needsInsideClip = editor.outlines.some(
-    (outline) => outline.enabled && outline.placement === "inside" && outline.thickness > 0,
+    (outline) =>
+      outline.enabled && outline.placement === "inside" && outline.thickness > 0,
   );
   const clip = needsInsideClip
     ? `<clipPath id="inside-clip"><text ${attributes}>${lines}</text></clipPath>`
@@ -170,7 +215,6 @@ export function serializeSvg(editor, measureLine) {
     title,
   )}</title><defs>${definitions}${clip}</defs>${outsideOutlineNodes(
     editor,
-    layout,
     attributes,
     lines,
   )}${fillNodes(editor, attributes, lines)}${foregroundOutlineNodes(
@@ -178,16 +222,4 @@ export function serializeSvg(editor, measureLine) {
     attributes,
     lines,
   )}</svg>`;
-}
-
-export function browserMeasureLine(line, typography) {
-  if (typeof document === "undefined") return undefined;
-  const canvas = browserMeasureLine.canvas ?? document.createElement("canvas");
-  browserMeasureLine.canvas = canvas;
-  const context = canvas.getContext("2d");
-  context.font = `${typography.fontWeight} ${typography.fontSize}px ${typography.fontFamily}`;
-  return Math.max(
-    1,
-    context.measureText(line).width + Math.max(0, Array.from(line).length - 1) * typography.letterSpacing,
-  );
 }

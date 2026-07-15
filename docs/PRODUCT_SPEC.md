@@ -22,6 +22,12 @@ The references define the interaction density and output capabilities. The appli
 6. Inspect the live result against transparent, light, or dark preview surfaces.
 7. Download an SVG that preserves the selected text, font declaration, gradients, opacity, and outline stacking.
 
+## CLI Journey
+
+1. Start from the same reference preset used by the web editor.
+2. Override text, typography, fill, gradient stops, angle, and outline layers with command-line options or JSON config.
+3. Write the deterministic SVG to a file or standard output.
+
 ## Functional Requirements
 
 ### Text and Typography
@@ -59,6 +65,15 @@ The references define the interaction density and output capabilities. The appli
 - Reset to the reference-inspired starter preset.
 - Deterministic serialization: identical visible settings must produce identical final SVG file content, excluding comments.
 
+### Command Line
+
+- TypeScript CLI exposed as `gradient-text-gen` after build or package installation.
+- Repeatable gradient stop and outline arguments.
+- All curated font IDs available through `--list-fonts`.
+- JSON configuration for repeatable automation.
+- File output and standard-output modes.
+- The CLI and browser editor share one document model and SVG serializer.
+
 ## Responsive Requirements
 
 - Desktop: persistent editor panel beside a large preview workspace.
@@ -83,5 +98,6 @@ The references define the interaction density and output capabilities. The appli
 - At least three gradient stops and two outlines can be active at once.
 - The editor supports no outline and at least ten concurrent outline layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
+- Equivalent CLI and web settings produce byte-identical SVG markup.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.
