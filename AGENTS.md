@@ -11,6 +11,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Keep product documentation and Git commit messages in English.
 - Font selection is a core requirement and must affect both the preview and exported SVG.
 - Let users load installed device font families when the browser supports Local Font Access, with manual family-name entry as the fallback.
+- Support deterministic outlined SVG export from an authorized device font or a user-selected OTF, TTF, or WOFF file; never upload or embed the font binary.
 - Use the supplied color-editor screenshots for control density and interaction patterns.
 - Use `/Users/potato4d/Desktop/Frame 2.svg` as the output-style reference for layered gradient text and outlines.
 - Support desktop and 390 px-wide mobile layouts without horizontal page overflow.

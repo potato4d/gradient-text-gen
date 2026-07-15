@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   LocalFontAccessError,
+  chooseDeviceFontRecord,
   createDeviceFontOptions,
   queryDeviceFonts,
   quoteCssFontFamily,
@@ -37,4 +38,14 @@ test("reports unsupported installed font discovery", async () => {
     queryDeviceFonts(undefined),
     (error: unknown) => error instanceof LocalFontAccessError && error.reason === "unsupported",
   );
+});
+
+test("chooses the closest installed face for the requested weight", () => {
+  const records = [
+    { family: "Example", fullName: "Example Regular", style: "Regular" },
+    { family: "Example", fullName: "Example Bold", style: "Bold" },
+    { family: "Example", fullName: "Example Black", style: "Black" },
+  ];
+  assert.equal(chooseDeviceFontRecord(records, "Example", 700)?.fullName, "Example Bold");
+  assert.equal(chooseDeviceFontRecord(records, "Example", 900)?.fullName, "Example Black");
 });

@@ -1,12 +1,57 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import opentype from "opentype.js";
 import {
   MAX_OUTLINES,
   createInitialDocument,
   createOutline,
   normalizeHex,
 } from "./editorModel.js";
-import { escapeXml, gradientVector, serializeSvg } from "./svg.js";
+import { escapeXml, gradientVector, serializeSvg, serializeSvgAsPaths } from "./svg.js";
+
+function createOutlineFixtureFont() {
+  const notdef = new opentype.Glyph({
+    name: ".notdef",
+    advanceWidth: 600,
+    path: new opentype.Path(),
+  });
+  const space = new opentype.Glyph({
+    name: "space",
+    unicode: 32,
+    advanceWidth: 300,
+    path: new opentype.Path(),
+  });
+  const aPath = new opentype.Path();
+  aPath.moveTo(40, 0);
+  aPath.lineTo(300, 700);
+  aPath.lineTo(560, 0);
+  aPath.lineTo(430, 0);
+  aPath.lineTo(360, 210);
+  aPath.lineTo(240, 210);
+  aPath.lineTo(170, 0);
+  aPath.close();
+  const bPath = new opentype.Path();
+  bPath.moveTo(40, 0);
+  bPath.lineTo(40, 700);
+  bPath.lineTo(500, 700);
+  bPath.lineTo(560, 350);
+  bPath.lineTo(500, 0);
+  bPath.close();
+
+  return new opentype.Font({
+    familyName: "Fixture Sans",
+    styleName: "Regular",
+    unitsPerEm: 1000,
+    ascender: 800,
+    descender: -200,
+    glyphs: [
+      notdef,
+      space,
+      new opentype.Glyph({ name: "A", unicode: 65, advanceWidth: 620, path: aPath }),
+      new opentype.Glyph({ name: "B", unicode: 66, advanceWidth: 640, path: bPath }),
+    ],
+  });
+}
 
 test("normalizes supported hexadecimal colors", () => {
   assert.equal(normalizeHex("#abc"), "#AABBCC");
@@ -77,4 +122,44 @@ test("preserves Japanese and escaped symbols in exported text", () => {
 
   assert.match(svg, /ライゼオル &amp; &lt;光&gt;/);
   assert.doesNotMatch(svg, /ライゼオル & <光>/);
+});
+
+test("serializes deterministic portable paths without font dependencies", () => {
+  const first = createInitialDocument();
+  const second = createInitialDocument();
+  first.text = "AB\nA";
+  second.text = "AB\nA";
+  first.typography.letterSpacing = 7;
+  second.typography.letterSpacing = 7;
+  first.outlines = [
+    { ...createOutline(0), placement: "outside" },
+    { ...createOutline(1), placement: "center" },
+    { ...createOutline(2), placement: "inside" },
+  ];
+  second.outlines = first.outlines.map((outline) => ({
+    ...outline,
+    id: `${outline.id}-different`,
+  }));
+
+  const firstSvg = serializeSvgAsPaths(first, createOutlineFixtureFont());
+  const secondSvg = serializeSvgAsPaths(second, createOutlineFixtureFont());
+  assert.equal(firstSvg, secondSvg);
+  assert.match(firstSvg, /data-text-as-path="true"/);
+  assert.match(firstSvg, /<path id="text-path" d="M/);
+  assert.match(firstSvg, /<use href="#text-path"/);
+  assert.match(firstSvg, /data-placement="outside"/);
+  assert.match(firstSvg, /data-placement="center"/);
+  assert.match(firstSvg, /data-placement="inside"/);
+  assert.doesNotMatch(firstSvg, /<text|<tspan|font-family=/);
+  assert.doesNotMatch(firstSvg, /NaN|Infinity/);
+  assert.doesNotMatch(firstSvg, /(?:^|[\s,(])-0(?:\.0+)?(?=[\s,)"LMCQZ]|$)/);
+});
+
+test("rejects path export when the font is missing a glyph", () => {
+  const editor = createInitialDocument();
+  editor.text = "AC";
+  assert.throws(
+    () => serializeSvgAsPaths(editor, createOutlineFixtureFont()),
+    /selected font is missing: C/,
+  );
 });

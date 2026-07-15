@@ -10,5 +10,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src/cli.ts", "src/editorModel.ts", "src/svg.ts"]
+  "include": ["src/cli.ts", "src/editorModel.ts", "src/svg.ts", "src/textToPath.ts"]
 }

@@ -15,7 +15,8 @@ import {
   type OutlineLayer,
   type OutlinePlacement,
 } from "./editorModel.js";
-import { serializeSvg } from "./svg.js";
+import { serializeSvg, serializeSvgAsPaths } from "./svg.js";
+import { parseOutlineFont } from "./textToPath.js";
 
 export const CLI_VERSION = "0.1.0";
 
@@ -23,6 +24,7 @@ export interface CliConfig {
   text?: string;
   font?: string;
   fontFamily?: string;
+  textToPath?: string;
   weight?: number;
   size?: number;
   tracking?: number;
@@ -52,6 +54,7 @@ Options:
   --text <value>                 Artwork text. Newlines are supported.
   --font <id>                    Font id from --list-fonts.
   --font-family <CSS value>      Installed or custom CSS font-family value.
+  --text-to-path <font-file>     Convert text to paths using an OTF, TTF, or WOFF file.
   --weight <100-900>             Font weight.
   --size <12-420>                Font size in pixels.
   --tracking <-30-80>            Letter spacing in pixels.
@@ -140,6 +143,7 @@ export function parseCliArgs(args: string[]): CliOptions {
       text: { type: "string" },
       font: { type: "string" },
       "font-family": { type: "string" },
+      "text-to-path": { type: "string" },
       weight: { type: "string" },
       size: { type: "string" },
       tracking: { type: "string" },
@@ -162,6 +166,7 @@ export function parseCliArgs(args: string[]): CliOptions {
     text: values.text,
     font: values.font,
     fontFamily: values["font-family"],
+    textToPath: values["text-to-path"],
     weight: parseNumber(values.weight, "--weight"),
     size: parseNumber(values.size, "--size"),
     tracking: parseNumber(values.tracking, "--tracking"),
@@ -222,6 +227,7 @@ export function parseConfig(value: unknown): CliConfig {
     text: readOptionalString(value, "text"),
     font: readOptionalString(value, "font"),
     fontFamily: readOptionalString(value, "fontFamily"),
+    textToPath: readOptionalString(value, "textToPath"),
     weight: readOptionalNumber(value, "weight"),
     size: readOptionalNumber(value, "size"),
     tracking: readOptionalNumber(value, "tracking"),
@@ -322,7 +328,18 @@ export async function runCli(args = process.argv.slice(2)): Promise<void> {
       ),
     ),
   };
-  const svg = serializeSvg(createDocumentFromOptions(options));
+  const editor = createDocumentFromOptions(options);
+  let svg: string;
+  if (options.textToPath) {
+    const source = await readFile(resolve(options.textToPath));
+    const buffer = source.buffer.slice(
+      source.byteOffset,
+      source.byteOffset + source.byteLength,
+    ) as ArrayBuffer;
+    svg = serializeSvgAsPaths(editor, parseOutlineFont(buffer));
+  } else {
+    svg = serializeSvg(editor);
+  }
 
   if (cli.output) {
     const output = resolve(cli.output);

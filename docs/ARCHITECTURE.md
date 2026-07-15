@@ -28,6 +28,8 @@ The CLI starts with the same document preset, applies validated command-line or 
 
 Installed font discovery is user-initiated because browsers require explicit permission. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
 
+Outlined export keeps parsed font data outside the serializable editor document. The browser may read bytes from an authorized `FontData.blob()` or a user-selected OTF, TTF, or WOFF file; the CLI requires an explicit file path. `textToPath.ts` lays out glyph paths with font metrics, kerning, tracking, and multiline baselines. The SVG stores the combined geometry once in `<defs>` and reuses it for every fill and outline layer.
+
 ## Rendering Strategy
 
 - Measure the text in the browser to derive a padded SVG view box.
@@ -43,6 +45,8 @@ Installed font discovery is user-initiated because browsers require explicit per
 - Serialize a standalone SVG string from the editor document.
 - Generate stable paint and clip IDs from rendered array positions rather than transient editor IDs.
 - Omit timestamps, random values, comments, and operation history so equivalent visible settings are byte-identical.
+- Quantize generated glyph path coordinates to three decimal places and derive outlined view boxes from font metrics and glyph bounds.
+- Reject outlined export when any non-whitespace glyph is unavailable instead of silently substituting a different font.
 - Include the selected CSS font-family value and typography attributes on every text node.
 - Escape text content before serialization.
 - Use a Blob URL for download and revoke it immediately afterward.
@@ -61,6 +65,7 @@ Installed font discovery is user-initiated because browsers require explicit per
 - `cli.ts`: argument/config validation, document overrides, and file/stdout output.
 - `editorModel.ts`: shared strict types and document factories.
 - `localFonts.ts`: installed font discovery, deduplication, and CSS family quoting.
+- `textToPath.ts`: local font parsing, missing-glyph validation, glyph layout, and deterministic path geometry.
 - `svg.ts`: environment-independent deterministic layout and serialization.
 - `worker/index.ts`: static asset delivery, security headers, and HTML navigation fallback for hosted previews.
 - `build/sites-vite-plugin.ts`: deployment metadata propagation into the production bundle.

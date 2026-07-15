@@ -39,6 +39,8 @@ The references define the interaction density and output capabilities. The appli
 - Font weight and text size controls.
 - Letter spacing and line-height controls.
 - The selected font settings must be included in the exported SVG.
+- Optional outlined export converts every glyph to SVG paths from an authorized device font or a user-selected OTF, TTF, or WOFF file.
+- Outlined export must keep font bytes local, exclude font-family dependencies, and stop with a clear error when the selected font lacks a required glyph.
 
 ### Fills and Gradients
 
@@ -73,6 +75,7 @@ The references define the interaction density and output capabilities. The appli
 - Repeatable gradient stop and outline arguments.
 - All curated font IDs available through `--list-fonts`.
 - Custom installed or CSS font-family declarations available through `--font-family` and `fontFamily` configuration.
+- Outlined path export available through `--text-to-path` and `textToPath` with an explicit font file.
 - JSON configuration for repeatable automation.
 - File output and standard-output modes.
 - The CLI and browser editor share one document model and SVG serializer.
@@ -99,6 +102,7 @@ The references define the interaction density and output capabilities. The appli
 - The exported file opens as valid SVG and retains the visible style.
 - Font changes visibly update the preview and the SVG markup.
 - A device or manually entered font family updates the preview and is preserved in exported SVG markup.
+- Outlined export contains reusable SVG path geometry and no `<text>`, `<tspan>`, `font-family`, or embedded font data.
 - At least three gradient stops and two outlines can be active at once.
 - The editor supports no outline and at least ten concurrent outline layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.

@@ -5,6 +5,7 @@ export interface LocalFontRecord {
   fullName?: string;
   postscriptName?: string;
   style?: string;
+  blob?: () => Promise<Blob>;
 }
 
 type QueryLocalFonts = () => Promise<LocalFontRecord[]>;
@@ -52,12 +53,48 @@ export function createDeviceFontOptions(records: readonly LocalFontRecord[]): Fo
     }));
 }
 
-export async function queryDeviceFonts(
+function inferredFontWeight(record: LocalFontRecord): number {
+  const name = `${record.style ?? ""} ${record.fullName ?? ""}`.toLocaleLowerCase();
+  if (/thin|hairline/.test(name)) return 100;
+  if (/extra[ -]?light|ultra[ -]?light/.test(name)) return 200;
+  if (/light/.test(name)) return 300;
+  if (/medium/.test(name)) return 500;
+  if (/semi[ -]?bold|demi[ -]?bold/.test(name)) return 600;
+  if (/extra[ -]?bold|ultra[ -]?bold/.test(name)) return 800;
+  if (/black|heavy/.test(name)) return 900;
+  if (/bold/.test(name)) return 700;
+  return 400;
+}
+
+export function chooseDeviceFontRecord(
+  records: readonly LocalFontRecord[],
+  family: string,
+  weight: number,
+): LocalFontRecord | undefined {
+  const normalizedFamily = family.trim().toLocaleLowerCase();
+  return records
+    .filter((record) => record.family.trim().toLocaleLowerCase() === normalizedFamily)
+    .sort((left, right) => {
+      const leftScore = Math.abs(inferredFontWeight(left) - weight);
+      const rightScore = Math.abs(inferredFontWeight(right) - weight);
+      if (leftScore !== rightScore) return leftScore - rightScore;
+      return (left.fullName ?? left.style ?? "").localeCompare(
+        right.fullName ?? right.style ?? "",
+      );
+    })[0];
+}
+
+export interface DeviceFontCatalog {
+  options: FontOption[];
+  records: LocalFontRecord[];
+}
+
+export async function queryDeviceFontCatalog(
   query: QueryLocalFonts | undefined =
     typeof window === "undefined"
       ? undefined
       : (window as LocalFontWindow).queryLocalFonts?.bind(window),
-): Promise<FontOption[]> {
+): Promise<DeviceFontCatalog> {
   if (!query) {
     throw new LocalFontAccessError(
       "unsupported",
@@ -66,11 +103,21 @@ export async function queryDeviceFonts(
   }
 
   try {
-    return createDeviceFontOptions(await query());
+    const records = await query();
+    return { options: createDeviceFontOptions(records), records };
   } catch (error) {
     if (error instanceof DOMException && error.name === "NotAllowedError") {
       throw new LocalFontAccessError("denied", "Installed font access was not granted.");
     }
     throw new LocalFontAccessError("failed", "Installed fonts could not be loaded.");
   }
+}
+
+export async function queryDeviceFonts(
+  query: QueryLocalFonts | undefined =
+    typeof window === "undefined"
+      ? undefined
+      : (window as LocalFontWindow).queryLocalFonts?.bind(window),
+): Promise<FontOption[]> {
+  return (await queryDeviceFontCatalog(query)).options;
 }

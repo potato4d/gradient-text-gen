@@ -1,6 +1,6 @@
 # Gradient Type Lab
 
-A strict TypeScript web editor and CLI for building layered gradient text and exporting deterministic SVG files.
+A strict TypeScript web editor and CLI for building layered gradient text and exporting deterministic SVG files as live text or portable outlined paths.
 
 - Web editor: `npm run dev`
 - Type checks: `npm run typecheck`

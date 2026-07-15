@@ -1,4 +1,10 @@
 import { clamp, type EditorDocument, type TypographySettings } from "./editorModel.js";
+import {
+  createPathGeometry,
+  findMissingGlyphs,
+  type OutlineFont,
+  type PathGeometry,
+} from "./textToPath.js";
 
 export interface GradientVector {
   x1: number;
@@ -222,4 +228,96 @@ export function serializeSvg(
     attributes,
     lines,
   )}</svg>`;
+}
+
+function pathDefinition(geometry: PathGeometry): string {
+  return `<path id="text-path" d="${escapeXml(geometry.pathData)}" transform="translate(${geometry.translateX} ${geometry.translateY})"/>`;
+}
+
+function pathUse(attributes = ""): string {
+  return `<use href="#text-path"${attributes ? ` ${attributes}` : ""}/>`;
+}
+
+function outsidePathOutlineNodes(editor: EditorDocument): string {
+  const outlines = editor.outlines.filter(
+    (outline) =>
+      outline.enabled && outline.placement === "outside" && outline.thickness > 0,
+  );
+  const cumulative = outlines.map((_, index) =>
+    outlines
+      .slice(0, index + 1)
+      .reduce((total, outline) => total + outline.thickness, 0),
+  );
+  return outlines
+    .map((outline, index) => ({ outline, strokeWidth: cumulative[index] * 2 }))
+    .reverse()
+    .map(({ outline, strokeWidth }) =>
+      pathUse(
+        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${strokeWidth}" stroke-opacity="${(
+          clamp(outline.opacity, 0, 100) / 100
+        ).toFixed(3)}" stroke-linejoin="round" stroke-linecap="round" data-placement="outside"`,
+      ),
+    )
+    .join("");
+}
+
+function pathFillNodes(editor: EditorDocument): string {
+  let gradientIndex = 0;
+  return editor.fills
+    .filter((fill) => fill.enabled)
+    .map((fill) => {
+      const paint =
+        fill.type === "linear" ? `url(#fill-${gradientIndex++})` : escapeXml(fill.color);
+      return pathUse(
+        `fill="${paint}" fill-opacity="${(clamp(fill.opacity, 0, 100) / 100).toFixed(
+          3,
+        )}" stroke="none"`,
+      );
+    })
+    .join("");
+}
+
+function foregroundPathOutlineNodes(editor: EditorDocument): string {
+  return editor.outlines
+    .filter(
+      (outline) =>
+        outline.enabled && outline.placement !== "outside" && outline.thickness > 0,
+    )
+    .map((outline, index) => {
+      const opacity = (clamp(outline.opacity, 0, 100) / 100).toFixed(3);
+      const node = pathUse(
+        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${
+          outline.placement === "inside" ? outline.thickness * 2 : outline.thickness
+        }" stroke-opacity="${opacity}" stroke-linejoin="round" stroke-linecap="round" data-placement="${
+          outline.placement
+        }" data-layer="${index}"`,
+      );
+      return outline.placement === "inside"
+        ? `<g clip-path="url(#inside-clip)">${node}</g>`
+        : node;
+    })
+    .join("");
+}
+
+export function serializeSvgAsPaths(editor: EditorDocument, font: OutlineFont): string {
+  const missingGlyphs = findMissingGlyphs(editor, font);
+  if (missingGlyphs.length > 0) {
+    throw new Error(`The selected font is missing: ${missingGlyphs.join(" ")}`);
+  }
+  const geometry = createPathGeometry(editor, font);
+  const definitions = fillDefinitions(editor);
+  const needsInsideClip = editor.outlines.some(
+    (outline) =>
+      outline.enabled && outline.placement === "inside" && outline.thickness > 0,
+  );
+  const clip = needsInsideClip
+    ? `<clipPath id="inside-clip">${pathUse()}</clipPath>`
+    : "";
+  const title = editor.text.trim() || "Gradient text artwork";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${geometry.width}" height="${geometry.height}" viewBox="0 0 ${geometry.width} ${geometry.height}" role="img" aria-labelledby="artwork-title" data-text-as-path="true"><title id="artwork-title">${escapeXml(
+    title,
+  )}</title><defs>${definitions}${pathDefinition(geometry)}${clip}</defs>${outsidePathOutlineNodes(
+    editor,
+  )}${pathFillNodes(editor)}${foregroundPathOutlineNodes(editor)}</svg>`;
 }

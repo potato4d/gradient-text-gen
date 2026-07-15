@@ -63,6 +63,17 @@ gradient-text-gen \
 
 `--font` and `--font-family` are mutually exclusive. Font files are not embedded; the selected family must be available wherever the SVG is rendered.
 
+Convert text to portable SVG paths with an explicit font file:
+
+```bash
+gradient-text-gen \
+  --text "Portable type" \
+  --text-to-path "./fonts/Brand-Regular.otf" \
+  --output portable-type.svg
+```
+
+Outlined export supports OTF, TTF, and WOFF input. It fails when the font file is invalid or lacks a required glyph. The font file path and binary are never included in the SVG, so the same file bytes and editor settings produce the same output regardless of the input path.
+
 ## Argument Formats
 
 Gradient stops use:
@@ -87,6 +98,7 @@ Use `--config settings.json` with a partial configuration object:
 {
   "text": "Config driven",
   "fontFamily": "'Avenir Next', sans-serif",
+  "textToPath": "./fonts/Brand-Regular.otf",
   "weight": 900,
   "size": 164,
   "tracking": -4,

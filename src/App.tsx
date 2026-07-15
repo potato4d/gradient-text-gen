@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
   Check,
@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Copy,
   Download,
+  FileUp,
   Laptop,
   Layers3,
   LoaderCircle,
@@ -40,11 +41,23 @@ import {
 } from "./editorModel.js";
 import {
   LocalFontAccessError,
-  queryDeviceFonts,
+  chooseDeviceFontRecord,
+  queryDeviceFontCatalog,
   quoteCssFontFamily,
   unquoteCssFontFamily,
+  type LocalFontRecord,
 } from "./localFonts.js";
-import { measureDocument, serializeSvg, type SvgLayout } from "./svg.js";
+import {
+  getOutlineFontFamily,
+  parseOutlineFont,
+  type OutlineFont,
+} from "./textToPath.js";
+import {
+  measureDocument,
+  serializeSvg,
+  serializeSvgAsPaths,
+  type SvgLayout,
+} from "./svg.js";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -62,9 +75,10 @@ interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
+  disabled?: boolean;
 }
 
-function Toggle({ checked, onChange, label }: ToggleProps) {
+function Toggle({ checked, onChange, label, disabled = false }: ToggleProps) {
   return (
     <button
       className="toggle"
@@ -72,6 +86,7 @@ function Toggle({ checked, onChange, label }: ToggleProps) {
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
     >
       <span />
@@ -203,18 +218,48 @@ function SectionHeading({
 interface TextControlsProps {
   editor: EditorDocument;
   onChange: (editor: EditorDocument) => void;
+  outlineFont: OutlineFontSource | null;
+  exportAsPaths: boolean;
+  pathExportError: string | null;
+  onOutlineFontChange: (source: OutlineFontSource | null) => void;
+  onExportAsPathsChange: (enabled: boolean) => void;
 }
 
 interface FontPickerProps {
   typography: TypographySettings;
   onChange: (patch: Partial<TypographySettings>) => void;
+  outlineFont: OutlineFontSource | null;
+  exportAsPaths: boolean;
+  pathExportError: string | null;
+  onOutlineFontChange: (source: OutlineFontSource | null) => void;
+  onExportAsPathsChange: (enabled: boolean) => void;
+}
+
+interface OutlineFontSource {
+  font: OutlineFont;
+  label: string;
+  origin: "device" | "file";
+  family: string;
+  weight: number;
 }
 
 type FontLoadState = "idle" | "loading" | "ready" | "unsupported" | "denied" | "failed";
 
-function FontPicker({ typography, onChange }: FontPickerProps) {
+function FontPicker({
+  typography,
+  onChange,
+  outlineFont,
+  exportAsPaths,
+  pathExportError,
+  onOutlineFontChange,
+  onExportAsPathsChange,
+}: FontPickerProps) {
   const [deviceFonts, setDeviceFonts] = useState<typeof FONT_OPTIONS>([]);
+  const [deviceFontRecords, setDeviceFontRecords] = useState<LocalFontRecord[]>([]);
   const [loadState, setLoadState] = useState<FontLoadState>("idle");
+  const [outlineLoadState, setOutlineLoadState] = useState<
+    "idle" | "loading" | "ready" | "unavailable" | "failed"
+  >("idle");
   const [customFontDraft, setCustomFontDraft] = useState("");
   const availableFonts = [...FONT_OPTIONS, ...deviceFonts];
   const currentFont = availableFonts.find((font) => font.id === typography.fontId);
@@ -230,8 +275,9 @@ function FontPicker({ typography, onChange }: FontPickerProps) {
   const loadDeviceFonts = async () => {
     setLoadState("loading");
     try {
-      const fonts = await queryDeviceFonts();
-      setDeviceFonts(fonts);
+      const catalog = await queryDeviceFontCatalog();
+      setDeviceFonts(catalog.options);
+      setDeviceFontRecords(catalog.records);
       setLoadState("ready");
     } catch (error) {
       if (error instanceof LocalFontAccessError) {
@@ -241,6 +287,53 @@ function FontPicker({ typography, onChange }: FontPickerProps) {
       }
     }
   };
+
+  useEffect(() => {
+    if (!typography.fontId.startsWith("device:") || deviceFontRecords.length === 0) return;
+    const family = unquoteCssFontFamily(typography.fontFamily);
+    const record = chooseDeviceFontRecord(
+      deviceFontRecords,
+      family,
+      typography.fontWeight,
+    );
+    if (!record?.blob) {
+      setOutlineLoadState("unavailable");
+      onOutlineFontChange(null);
+      return;
+    }
+
+    let cancelled = false;
+    setOutlineLoadState("loading");
+    record
+      .blob()
+      .then((blob) => blob.arrayBuffer())
+      .then((buffer) => parseOutlineFont(buffer))
+      .then((font) => {
+        if (cancelled) return;
+        onOutlineFontChange({
+          font,
+          label: record.fullName || record.style || record.family,
+          origin: "device",
+          family,
+          weight: typography.fontWeight,
+        });
+        setOutlineLoadState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        onOutlineFontChange(null);
+        setOutlineLoadState("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    deviceFontRecords,
+    onOutlineFontChange,
+    typography.fontFamily,
+    typography.fontId,
+    typography.fontWeight,
+  ]);
 
   const applyCustomFont = () => {
     const family = customFontDraft.trim();
@@ -253,6 +346,37 @@ function FontPicker({ typography, onChange }: FontPickerProps) {
         ? { fontId: knownFont.id, fontFamily: knownFont.family }
         : { fontId: `custom:${family.toLocaleLowerCase()}`, fontFamily: quoteCssFontFamily(family) },
     );
+    onOutlineFontChange(null);
+    setOutlineLoadState("idle");
+  };
+
+  const loadFontFile = async (file: File | undefined) => {
+    if (!file) return;
+    setOutlineLoadState("loading");
+    try {
+      const buffer = await file.arrayBuffer();
+      const font = parseOutlineFont(buffer.slice(0));
+      const family = getOutlineFontFamily(font);
+      const previewFace = new FontFace(family, buffer.slice(0));
+      await previewFace.load();
+      document.fonts.add(previewFace);
+      onChange({
+        fontId: `uploaded:${family.toLocaleLowerCase()}`,
+        fontFamily: quoteCssFontFamily(family),
+      });
+      setCustomFontDraft(family);
+      onOutlineFontChange({
+        font,
+        label: file.name,
+        origin: "file",
+        family,
+        weight: typography.fontWeight,
+      });
+      setOutlineLoadState("ready");
+    } catch {
+      onOutlineFontChange(null);
+      setOutlineLoadState("failed");
+    }
   };
 
   const statusMessage = {
@@ -294,6 +418,10 @@ function FontPicker({ typography, onChange }: FontPickerProps) {
           if (!font) return;
           onChange({ fontId: font.id, fontFamily: font.family });
           setCustomFontDraft(font.id.startsWith("device:") ? font.label : "");
+          if (!font.id.startsWith("device:")) {
+            onOutlineFontChange(null);
+            setOutlineLoadState("idle");
+          }
         }}
       >
         {!currentFont ? (
@@ -336,11 +464,56 @@ function FontPicker({ typography, onChange }: FontPickerProps) {
       <p id="device-font-status" className={`font-status is-${loadState}`} aria-live="polite">
         {statusMessage}
       </p>
+      <div className="font-file-row">
+        <label className="font-file-button">
+          <FileUp size={13} />
+          Load font file
+          <input
+            type="file"
+            accept=".otf,.ttf,.woff,font/otf,font/ttf,font/woff"
+            onChange={(event) => {
+              void loadFontFile(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        <span>OTF, TTF, or WOFF</span>
+      </div>
+      <div className={`path-export-control ${outlineFont ? "is-ready" : ""}`}>
+        <div>
+          <strong>Outline text on export</strong>
+          <small>
+            {pathExportError
+              ? pathExportError
+              : outlineLoadState === "loading"
+                ? "Preparing font outlines…"
+                : outlineFont
+                  ? `${outlineFont.label} is ready for portable paths.`
+                  : outlineLoadState === "failed"
+                    ? "That font could not be read. Try another OTF, TTF, or WOFF file."
+                    : "Choose a device font or load its font file."}
+          </small>
+        </div>
+        <Toggle
+          checked={exportAsPaths}
+          onChange={onExportAsPathsChange}
+          label="Outline text on SVG export"
+          disabled={!outlineFont}
+        />
+      </div>
     </div>
   );
 }
 
-function TextControls({ editor, onChange }: TextControlsProps) {
+function TextControls({
+  editor,
+  onChange,
+  outlineFont,
+  exportAsPaths,
+  pathExportError,
+  onOutlineFontChange,
+  onExportAsPathsChange,
+}: TextControlsProps) {
   const { typography } = editor;
 
   const updateTypography = (patch: Partial<TypographySettings>) =>
@@ -367,7 +540,15 @@ function TextControls({ editor, onChange }: TextControlsProps) {
         onChange={(event) => onChange({ ...editor, text: event.target.value })}
       />
       <div className="control-grid control-grid-two">
-        <FontPicker typography={typography} onChange={updateTypography} />
+        <FontPicker
+          typography={typography}
+          onChange={updateTypography}
+          outlineFont={outlineFont}
+          exportAsPaths={exportAsPaths}
+          pathExportError={pathExportError}
+          onOutlineFontChange={onOutlineFontChange}
+          onExportAsPathsChange={onExportAsPathsChange}
+        />
         <label className="select-field">
           <span>Weight</span>
           <select
@@ -933,10 +1114,30 @@ export function App() {
   const [background, setBackground] = useState<PreviewBackground>("transparent");
   const [zoom, setZoom] = useState(100);
   const [notice, setNotice] = useState("");
+  const [outlineFont, setOutlineFont] = useState<OutlineFontSource | null>(null);
+  const [exportAsPaths, setExportAsPaths] = useState(false);
 
   const markup = useMemo(() => serializeSvg(editor), [editor]);
+  const pathExport = useMemo(() => {
+    if (!outlineFont) return { markup: null, error: null };
+    try {
+      return { markup: serializeSvgAsPaths(editor, outlineFont.font), error: null };
+    } catch (error) {
+      return {
+        markup: null,
+        error: error instanceof Error ? error.message : "Text outlines could not be generated.",
+      };
+    }
+  }, [editor, outlineFont]);
+  const exportMarkup = exportAsPaths && pathExport.markup ? pathExport.markup : markup;
   const layout = useMemo(() => measureDocument(editor), [editor]);
   const isEmpty = editor.text.trim().length === 0;
+  const exportUnavailable = exportAsPaths && !pathExport.markup;
+
+  const handleOutlineFontChange = useCallback((source: OutlineFontSource | null) => {
+    setOutlineFont(source);
+    if (!source) setExportAsPaths(false);
+  }, []);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -951,21 +1152,30 @@ export function App() {
     setSelectedOutlineId(next.outlines[0]?.id ?? null);
     setBackground("transparent");
     setZoom(100);
+    setOutlineFont(null);
+    setExportAsPaths(false);
     setNotice("Reference preset restored");
   };
 
   const copySvg = async () => {
+    if (exportUnavailable) {
+      setNotice(pathExport.error || "Text outlines are not ready");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(markup);
-      setNotice("SVG source copied");
+      await navigator.clipboard.writeText(exportMarkup);
+      setNotice(exportAsPaths ? "Outlined SVG source copied" : "SVG source copied");
     } catch {
       setNotice("Clipboard access was blocked");
     }
   };
 
   const downloadSvg = () => {
-    if (isEmpty) return;
-    const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
+    if (isEmpty || exportUnavailable) {
+      if (exportUnavailable) setNotice(pathExport.error || "Text outlines are not ready");
+      return;
+    }
+    const blob = new Blob([exportMarkup], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     const fileBase = editor.text
@@ -979,7 +1189,7 @@ export function App() {
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice("SVG downloaded");
+    setNotice(exportAsPaths ? "Outlined SVG downloaded" : "SVG downloaded");
   };
 
   return (
@@ -998,11 +1208,16 @@ export function App() {
           <ActionButton icon={RotateCcw} onClick={reset}>
             Reset
           </ActionButton>
-          <ActionButton icon={Copy} onClick={copySvg} disabled={isEmpty}>
-            Copy SVG
+          <ActionButton icon={Copy} onClick={copySvg} disabled={isEmpty || exportUnavailable}>
+            {exportAsPaths ? "Copy outlined SVG" : "Copy SVG"}
           </ActionButton>
-          <ActionButton icon={Download} primary onClick={downloadSvg} disabled={isEmpty}>
-            Download SVG
+          <ActionButton
+            icon={Download}
+            primary
+            onClick={downloadSvg}
+            disabled={isEmpty || exportUnavailable}
+          >
+            {exportAsPaths ? "Download outlined SVG" : "Download SVG"}
           </ActionButton>
         </div>
       </header>
@@ -1014,7 +1229,15 @@ export function App() {
             <h1>Make type with depth.</h1>
             <p>Compose gradients and up to twelve precisely placed outline rings.</p>
           </div>
-          <TextControls editor={editor} onChange={setEditor} />
+          <TextControls
+            editor={editor}
+            onChange={setEditor}
+            outlineFont={outlineFont}
+            exportAsPaths={exportAsPaths}
+            pathExportError={pathExport.error}
+            onOutlineFontChange={handleOutlineFontChange}
+            onExportAsPathsChange={setExportAsPaths}
+          />
           <FillPanel
             fills={editor.fills}
             selectedId={selectedFillId}
@@ -1047,11 +1270,21 @@ export function App() {
         <button type="button" onClick={reset} aria-label="Reset artwork">
           <RotateCcw size={19} />
         </button>
-        <button type="button" onClick={copySvg} disabled={isEmpty} aria-label="Copy SVG source">
+        <button
+          type="button"
+          onClick={copySvg}
+          disabled={isEmpty || exportUnavailable}
+          aria-label={exportAsPaths ? "Copy outlined SVG source" : "Copy SVG source"}
+        >
           <Copy size={19} />
         </button>
-        <button className="mobile-download" type="button" onClick={downloadSvg} disabled={isEmpty}>
-          <Download size={18} /> Download SVG
+        <button
+          className="mobile-download"
+          type="button"
+          onClick={downloadSvg}
+          disabled={isEmpty || exportUnavailable}
+        >
+          <Download size={18} /> {exportAsPaths ? "Download outlined" : "Download SVG"}
         </button>
       </div>
 

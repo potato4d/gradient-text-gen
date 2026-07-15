@@ -59,6 +59,7 @@ test("accepts documented JSON config fields", () => {
       text: "Config",
       font: "monospace",
       fontFamily: undefined,
+      textToPath: undefined,
       weight: undefined,
       size: 120,
       tracking: undefined,
@@ -78,6 +79,7 @@ test("accepts an installed font-family declaration", () => {
     parseCliArgs(["--font-family", "'Avenir Next', sans-serif"]).fontFamily,
     "'Avenir Next', sans-serif",
   );
+  assert.equal(parseCliArgs(["--text-to-path", "./Fixture.ttf"]).textToPath, "./Fixture.ttf");
   const editor = createDocumentFromOptions({ fontFamily: "'Avenir Next', sans-serif" });
   assert.equal(editor.typography.fontId, "custom");
   assert.equal(editor.typography.fontFamily, "'Avenir Next', sans-serif");
