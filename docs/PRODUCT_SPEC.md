@@ -34,6 +34,8 @@ The references define the interaction density and output capabilities. The appli
 
 - Editable text with multiline support.
 - Selectable font family from a curated browser-safe stack.
+- User-initiated discovery of installed device font families through the Local Font Access API when supported.
+- Manual font-family entry when installed font discovery is unsupported, unavailable, or denied.
 - Font weight and text size controls.
 - Letter spacing and line-height controls.
 - The selected font settings must be included in the exported SVG.
@@ -70,6 +72,7 @@ The references define the interaction density and output capabilities. The appli
 - TypeScript CLI exposed as `gradient-text-gen` after build or package installation.
 - Repeatable gradient stop and outline arguments.
 - All curated font IDs available through `--list-fonts`.
+- Custom installed or CSS font-family declarations available through `--font-family` and `fontFamily` configuration.
 - JSON configuration for repeatable automation.
 - File output and standard-output modes.
 - The CLI and browser editor share one document model and SVG serializer.
@@ -95,6 +98,7 @@ The references define the interaction density and output capabilities. The appli
 - The full core journey works without a backend.
 - The exported file opens as valid SVG and retains the visible style.
 - Font changes visibly update the preview and the SVG markup.
+- A device or manually entered font family updates the preview and is preserved in exported SVG markup.
 - At least three gradient stops and two outlines can be active at once.
 - The editor supports no outline and at least ten concurrent outline layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.

@@ -26,6 +26,8 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 
 The CLI starts with the same document preset, applies validated command-line or JSON overrides, and calls the same serializer. Transient IDs are never included in SVG output.
 
+Installed font discovery is user-initiated because browsers require explicit permission. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
+
 ## Rendering Strategy
 
 - Measure the text in the browser to derive a padded SVG view box.
@@ -58,6 +60,7 @@ The CLI starts with the same document preset, applies validated command-line or 
 - `ExportActions`: reset, clipboard, and SVG download actions.
 - `cli.ts`: argument/config validation, document overrides, and file/stdout output.
 - `editorModel.ts`: shared strict types and document factories.
+- `localFonts.ts`: installed font discovery, deduplication, and CSS family quoting.
 - `svg.ts`: environment-independent deterministic layout and serialization.
 - `worker/index.ts`: static asset delivery, security headers, and HTML navigation fallback for hosted previews.
 - `build/sites-vite-plugin.ts`: deployment metadata propagation into the production bundle.

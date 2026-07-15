@@ -52,6 +52,17 @@ List valid font IDs:
 gradient-text-gen --list-fonts
 ```
 
+Use an installed or custom CSS font-family declaration without adding it to the curated list:
+
+```bash
+gradient-text-gen \
+  --text "Local type" \
+  --font-family "'Avenir Next', sans-serif" \
+  --output local-type.svg
+```
+
+`--font` and `--font-family` are mutually exclusive. Font files are not embedded; the selected family must be available wherever the SVG is rendered.
+
 ## Argument Formats
 
 Gradient stops use:
@@ -75,7 +86,7 @@ Use `--config settings.json` with a partial configuration object:
 ```json
 {
   "text": "Config driven",
-  "font": "heavy-gothic",
+  "fontFamily": "'Avenir Next', sans-serif",
   "weight": 900,
   "size": 164,
   "tracking": -4,
@@ -88,4 +99,3 @@ Use `--config settings.json` with a partial configuration object:
 ```
 
 Command-line options override config values. The resulting SVG contains no timestamps, random identifiers, comments, or operation history.
-

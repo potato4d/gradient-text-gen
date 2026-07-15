@@ -6,7 +6,9 @@ import {
   ChevronUp,
   Copy,
   Download,
+  Laptop,
   Layers3,
+  LoaderCircle,
   Palette,
   Plus,
   RotateCcw,
@@ -36,6 +38,12 @@ import {
   type OutlinePlacement,
   type TypographySettings,
 } from "./editorModel.js";
+import {
+  LocalFontAccessError,
+  queryDeviceFonts,
+  quoteCssFontFamily,
+  unquoteCssFontFamily,
+} from "./localFonts.js";
 import { measureDocument, serializeSvg, type SvgLayout } from "./svg.js";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -197,6 +205,141 @@ interface TextControlsProps {
   onChange: (editor: EditorDocument) => void;
 }
 
+interface FontPickerProps {
+  typography: TypographySettings;
+  onChange: (patch: Partial<TypographySettings>) => void;
+}
+
+type FontLoadState = "idle" | "loading" | "ready" | "unsupported" | "denied" | "failed";
+
+function FontPicker({ typography, onChange }: FontPickerProps) {
+  const [deviceFonts, setDeviceFonts] = useState<typeof FONT_OPTIONS>([]);
+  const [loadState, setLoadState] = useState<FontLoadState>("idle");
+  const [customFontDraft, setCustomFontDraft] = useState("");
+  const availableFonts = [...FONT_OPTIONS, ...deviceFonts];
+  const currentFont = availableFonts.find((font) => font.id === typography.fontId);
+
+  useEffect(() => {
+    if (FONT_OPTIONS.some((font) => font.id === typography.fontId)) {
+      setCustomFontDraft("");
+      return;
+    }
+    setCustomFontDraft(unquoteCssFontFamily(typography.fontFamily));
+  }, [typography.fontFamily, typography.fontId]);
+
+  const loadDeviceFonts = async () => {
+    setLoadState("loading");
+    try {
+      const fonts = await queryDeviceFonts();
+      setDeviceFonts(fonts);
+      setLoadState("ready");
+    } catch (error) {
+      if (error instanceof LocalFontAccessError) {
+        setLoadState(error.reason);
+      } else {
+        setLoadState("failed");
+      }
+    }
+  };
+
+  const applyCustomFont = () => {
+    const family = customFontDraft.trim();
+    if (!family) return;
+    const knownFont = availableFonts.find(
+      (font) => font.label.toLocaleLowerCase() === family.toLocaleLowerCase(),
+    );
+    onChange(
+      knownFont
+        ? { fontId: knownFont.id, fontFamily: knownFont.family }
+        : { fontId: `custom:${family.toLocaleLowerCase()}`, fontFamily: quoteCssFontFamily(family) },
+    );
+  };
+
+  const statusMessage = {
+    idle: "Load installed font names, or enter a family manually.",
+    loading: "Reading installed font names…",
+    ready:
+      deviceFonts.length > 0
+        ? `${deviceFonts.length} device font families available.`
+        : "No device font families were returned. You can still enter one manually.",
+    unsupported: "This browser cannot list device fonts. Enter a family name manually.",
+    denied: "Device font access was not granted. Enter a family name manually.",
+    failed: "Device fonts could not be loaded. Enter a family name manually.",
+  }[loadState];
+
+  return (
+    <div className="font-picker">
+      <div className="font-field-heading">
+        <label htmlFor="font-family-select">Font</label>
+        <button
+          className="font-load-button"
+          type="button"
+          onClick={loadDeviceFonts}
+          disabled={loadState === "loading"}
+          aria-describedby="device-font-status"
+        >
+          {loadState === "loading" ? (
+            <LoaderCircle className="is-spinning" size={13} />
+          ) : (
+            <Laptop size={13} />
+          )}
+          {loadState === "ready" ? "Reload device fonts" : "Load device fonts"}
+        </button>
+      </div>
+      <select
+        id="font-family-select"
+        value={typography.fontId}
+        onChange={(event) => {
+          const font = availableFonts.find((option) => option.id === event.target.value);
+          if (!font) return;
+          onChange({ fontId: font.id, fontFamily: font.family });
+          setCustomFontDraft(font.id.startsWith("device:") ? font.label : "");
+        }}
+      >
+        {!currentFont ? (
+          <option value={typography.fontId}>
+            Custom · {unquoteCssFontFamily(typography.fontFamily)}
+          </option>
+        ) : null}
+        <optgroup label="Curated fonts">
+          {FONT_OPTIONS.map((font) => (
+            <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+              {font.label}
+            </option>
+          ))}
+        </optgroup>
+        {deviceFonts.length > 0 ? (
+          <optgroup label={`Device fonts (${deviceFonts.length})`}>
+            {deviceFonts.map((font) => (
+              <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                {font.label}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
+      </select>
+      <div className="custom-font-row">
+        <input
+          aria-label="Custom font family name"
+          value={customFontDraft}
+          placeholder="Installed font family name"
+          spellCheck="false"
+          onChange={(event) => setCustomFontDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") applyCustomFont();
+          }}
+        />
+        <button type="button" onClick={applyCustomFont} disabled={!customFontDraft.trim()}>
+          Use font
+        </button>
+      </div>
+      <p id="device-font-status" className={`font-status is-${loadState}`} aria-live="polite">
+        {statusMessage}
+      </p>
+    </div>
+  );
+}
+
 function TextControls({ editor, onChange }: TextControlsProps) {
   const { typography } = editor;
 
@@ -224,22 +367,7 @@ function TextControls({ editor, onChange }: TextControlsProps) {
         onChange={(event) => onChange({ ...editor, text: event.target.value })}
       />
       <div className="control-grid control-grid-two">
-        <label className="select-field">
-          <span>Font</span>
-          <select
-            value={typography.fontId}
-            onChange={(event) => {
-              const font = FONT_OPTIONS.find((option) => option.id === event.target.value);
-              if (font) updateTypography({ fontId: font.id, fontFamily: font.family });
-            }}
-          >
-            {FONT_OPTIONS.map((font) => (
-              <option key={font.id} value={font.id}>
-                {font.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FontPicker typography={typography} onChange={updateTypography} />
         <label className="select-field">
           <span>Weight</span>
           <select

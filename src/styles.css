@@ -289,6 +289,7 @@ select:disabled {
 
 .control-label,
 .select-field > span,
+.font-field-heading label,
 .compact-number > span:first-child,
 .field-label {
   color: var(--muted-strong);
@@ -302,6 +303,9 @@ select:disabled {
 }
 
 .text-input,
+.font-picker select,
+.custom-font-row input,
+.custom-font-row button,
 .select-field select,
 .hex-input,
 .number-shell {
@@ -312,6 +316,9 @@ select:disabled {
 }
 
 .text-input:hover,
+.font-picker select:hover,
+.custom-font-row input:hover,
+.custom-font-row button:hover:not(:disabled),
 .select-field select:hover,
 .hex-input:hover,
 .number-shell:hover {
@@ -358,6 +365,101 @@ select:disabled {
   border-radius: 9px;
   font-size: 12px;
   font-weight: 620;
+}
+
+.font-picker {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.font-field-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.font-load-button {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 7px;
+  color: #b9baff;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 690;
+}
+
+.font-load-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+
+.font-picker select {
+  width: 100%;
+  height: 42px;
+  padding: 0 32px 0 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.custom-font-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.custom-font-row input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.custom-font-row button {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.font-status {
+  min-height: 14px;
+  margin: -1px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.font-status.is-ready {
+  color: #a8d7ba;
+}
+
+.font-status.is-denied,
+.font-status.is-failed,
+.font-status.is-unsupported {
+  color: #d6b989;
+}
+
+.is-spinning {
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .field-label {

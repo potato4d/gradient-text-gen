@@ -58,6 +58,7 @@ test("accepts documented JSON config fields", () => {
     {
       text: "Config",
       font: "monospace",
+      fontFamily: undefined,
       weight: undefined,
       size: 120,
       tracking: undefined,
@@ -69,6 +70,21 @@ test("accepts documented JSON config fields", () => {
       outlines: [],
       noOutline: undefined,
     },
+  );
+});
+
+test("accepts an installed font-family declaration", () => {
+  assert.equal(
+    parseCliArgs(["--font-family", "'Avenir Next', sans-serif"]).fontFamily,
+    "'Avenir Next', sans-serif",
+  );
+  const editor = createDocumentFromOptions({ fontFamily: "'Avenir Next', sans-serif" });
+  assert.equal(editor.typography.fontId, "custom");
+  assert.equal(editor.typography.fontFamily, "'Avenir Next', sans-serif");
+  assert.match(serializeSvg(editor), /font-family="&apos;Avenir Next&apos;, sans-serif"/);
+  assert.throws(
+    () => createDocumentFromOptions({ font: "monospace", fontFamily: "Menlo" }),
+    /either --font or --font-family/,
   );
 });
 

@@ -22,6 +22,7 @@ export const CLI_VERSION = "0.1.0";
 export interface CliConfig {
   text?: string;
   font?: string;
+  fontFamily?: string;
   weight?: number;
   size?: number;
   tracking?: number;
@@ -50,6 +51,7 @@ Usage:
 Options:
   --text <value>                 Artwork text. Newlines are supported.
   --font <id>                    Font id from --list-fonts.
+  --font-family <CSS value>      Installed or custom CSS font-family value.
   --weight <100-900>             Font weight.
   --size <12-420>                Font size in pixels.
   --tracking <-30-80>            Letter spacing in pixels.
@@ -137,6 +139,7 @@ export function parseCliArgs(args: string[]): CliOptions {
     options: {
       text: { type: "string" },
       font: { type: "string" },
+      "font-family": { type: "string" },
       weight: { type: "string" },
       size: { type: "string" },
       tracking: { type: "string" },
@@ -158,6 +161,7 @@ export function parseCliArgs(args: string[]): CliOptions {
   return {
     text: values.text,
     font: values.font,
+    fontFamily: values["font-family"],
     weight: parseNumber(values.weight, "--weight"),
     size: parseNumber(values.size, "--size"),
     tracking: parseNumber(values.tracking, "--tracking"),
@@ -217,6 +221,7 @@ export function parseConfig(value: unknown): CliConfig {
   return {
     text: readOptionalString(value, "text"),
     font: readOptionalString(value, "font"),
+    fontFamily: readOptionalString(value, "fontFamily"),
     weight: readOptionalNumber(value, "weight"),
     size: readOptionalNumber(value, "size"),
     tracking: readOptionalNumber(value, "tracking"),
@@ -239,6 +244,9 @@ export function createDocumentFromOptions(options: CliConfig): EditorDocument {
 
   const editor = createInitialDocument();
   if (options.text !== undefined) editor.text = options.text;
+  if (options.font !== undefined && options.fontFamily !== undefined) {
+    throw new Error("Use either --font or --font-family, not both.");
+  }
   if (options.font !== undefined) {
     const font = FONT_OPTIONS.find((option) => option.id === options.font);
     if (!font) {
@@ -246,6 +254,12 @@ export function createDocumentFromOptions(options: CliConfig): EditorDocument {
     }
     editor.typography.fontId = font.id;
     editor.typography.fontFamily = font.family;
+  }
+  if (options.fontFamily !== undefined) {
+    const family = options.fontFamily.trim();
+    if (!family) throw new Error("Font family cannot be empty.");
+    editor.typography.fontId = "custom";
+    editor.typography.fontFamily = family;
   }
   if (options.weight !== undefined) editor.typography.fontWeight = options.weight;
   if (options.size !== undefined) editor.typography.fontSize = options.size;
@@ -328,4 +342,3 @@ if (invokedPath && fileURLToPath(import.meta.url) === invokedPath) {
     process.exitCode = 1;
   });
 }
-
