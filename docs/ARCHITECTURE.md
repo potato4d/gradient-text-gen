@@ -7,6 +7,7 @@
 - Vite 6 for local development and production builds.
 - `lucide-react` for consistent interface icons, as required by the product brief.
 - Native SVG for preview rendering and file export.
+- A minimal Cloudflare-compatible worker for static delivery and single-page navigation fallback.
 
 ## State Model
 
@@ -58,6 +59,22 @@ The CLI starts with the same document preset, applies validated command-line or 
 - `cli.ts`: argument/config validation, document overrides, and file/stdout output.
 - `editorModel.ts`: shared strict types and document factories.
 - `svg.ts`: environment-independent deterministic layout and serialization.
+- `worker/index.ts`: static asset delivery, security headers, and HTML navigation fallback for hosted previews.
+- `build/sites-vite-plugin.ts`: deployment metadata propagation into the production bundle.
+
+## Deployment Output
+
+`npm run build` clears generated artifacts and produces three independent targets:
+
+```text
+dist/
+├── .openai/hosting.json
+├── client/                 # Browser assets
+└── server/index.js         # Cloudflare-compatible worker entry
+dist-cli/                   # Node.js CLI package output
+```
+
+The worker delegates static requests to the platform asset binding. Requests that accept HTML fall back to `index.html`, which keeps direct links and browser refreshes inside the React application.
 
 ## Testing Strategy
 

@@ -8,11 +8,13 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:web && npm run build:cli",
+    "clean": "tsx build/clean.ts",
+    "build": "npm run clean && npm run build:web && npm run build:worker && npm run build:cli",
     "build:web": "vite build",
+    "build:worker": "tsc -p tsconfig.worker.json",
     "build:cli": "tsc -p tsconfig.cli.json",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.cli.json --noEmit",
-    "test": "tsx --test src/*.test.ts",
+    "test": "tsx --test src/*.test.ts worker/*.test.ts",
     "cli": "tsx src/cli.ts",
     "preview": "vite preview"
   },

@@ -11,7 +11,9 @@ npm run build
 git diff --check
 ```
 
-The TypeScript test suite covers CLI parsing and configuration, color normalization, XML escaping, gradient geometry, the reference preset, deterministic output, zero and twelve outline layers, all three outline placements, and Japanese text.
+The TypeScript test suite covers CLI parsing and configuration, color normalization, XML escaping, gradient geometry, the reference preset, deterministic output, zero and twelve outline layers, all three outline placements, Japanese text, and hosted static delivery behavior.
+
+The production build must include `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`. The worker tests verify static delivery, HTML navigation fallback, and unmodified asset 404 responses.
 
 ## Deterministic SVG Requirement
 

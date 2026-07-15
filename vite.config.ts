@@ -1,7 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { sites } from "./build/sites-vite-plugin.js";
 
 export default defineConfig({
+  build: {
+    outDir: "dist/client",
+  },
   optimizeDeps: {
     include: ["react", "react-dom/client"],
   },
@@ -12,5 +16,5 @@ export default defineConfig({
       clientFiles: ["./src/main.tsx"],
     },
   },
-  plugins: [react()],
+  plugins: [react(), sites()],
 });
