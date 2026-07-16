@@ -68,7 +68,7 @@ The references define the interaction density and output capabilities. The appli
 - Live SVG preview.
 - Transparent checkerboard, light, and dark preview surfaces.
 - Zoom-to-fit behavior for long or multiline text.
-- A visible canvas mode selects the fixed Frame 2 reference artboard or content-derived fit bounds. Editing text or typography switches to fit bounds automatically.
+- The web editor always derives fitted canvas bounds from the current artwork and does not expose a canvas-mode control.
 - SVG download with a safe filename.
 - Copy SVG source to the clipboard.
 - Reset to the device-independent starter settings.

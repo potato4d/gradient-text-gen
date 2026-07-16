@@ -27,7 +27,6 @@ import {
   createFill,
   createInitialDocument,
   createOutline,
-  createReferenceFrame,
   gradientCss,
   insertStop,
   normalizeHex,
@@ -567,39 +566,19 @@ function TextControls({
           onOutlineFontChange={onOutlineFontChange}
           onOutlineLoadStateChange={onOutlineLoadStateChange}
         />
-        <div className="type-meta-stack">
-          <label className="select-field">
-            <span>Weight</span>
-            <select
-              value={typography.fontWeight}
-              onChange={(event) => updateTypography({ fontWeight: Number(event.target.value) })}
-            >
-              {[400, 500, 600, 700, 800, 900].map((weight) => (
-                <option key={weight} value={weight}>
-                  {weight}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="select-field">
-            <span>Canvas</span>
-            <select
-              value={editor.frame.mode}
-              onChange={(event) =>
-                onChange({
-                  ...editor,
-                  frame:
-                    event.target.value === "fixed"
-                      ? createReferenceFrame()
-                      : { mode: "fit" },
-                })
-              }
-            >
-              <option value="fixed">Frame 2</option>
-              <option value="fit">Fit artwork</option>
-            </select>
-          </label>
-        </div>
+        <label className="select-field">
+          <span>Weight</span>
+          <select
+            value={typography.fontWeight}
+            onChange={(event) => updateTypography({ fontWeight: Number(event.target.value) })}
+          >
+            {[400, 500, 600, 700, 800, 900].map((weight) => (
+              <option key={weight} value={weight}>
+                {weight}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <div className="control-grid control-grid-three">
         <RangeField

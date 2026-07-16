@@ -25,7 +25,7 @@ document
 
 Every visible control updates this document. Preview markup and downloaded SVG markup are produced from the same state to avoid export drift.
 
-The web editor and CLI start with the same content-fitted Japanese system-font document, apply validated overrides, and call the same serializer. DelaSuko is isolated to the explicit Frame 2 verification document rather than presented as an installed font. Transient IDs are never included in SVG output.
+The web editor and CLI start with the same content-fitted Japanese system-font document, apply validated overrides, and call the same serializer. The web interface keeps canvas bounds content-fitted and does not expose the fixed reference frame. DelaSuko and fixed-frame geometry remain isolated to the explicit Frame 2 verification document rather than presented as general editor controls. Transient IDs are never included in SVG output.
 
 The ordinary starter uses content-derived `fit` bounds. The explicit reference document starts on its pinned 874 × 310 artboard, while web text/font/typography edits and CLI geometry overrides switch to `fit` unless a fixed frame is explicitly selected, preventing ordinary long or multiline content from inheriting the Sketch calibration and clipping.
 
