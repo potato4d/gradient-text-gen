@@ -39,6 +39,7 @@ Outlined export keeps parsed font data outside the serializable editor document.
 - Render the outermost outlines first as repeated SVG `<text>` elements.
 - Treat each outside size as an absolute glyph-edge distance and render it as a doubled centered stroke behind the fill. Use native centered strokes for `center`, and clip doubled strokes to glyph shapes for `inside`.
 - Use miter joins and butt caps so sharp corners match the Sketch reference.
+- When the outlined base path, canvas dimensions, padding, and translation exactly match the canonical Frame 2 geometry and the outside size is 20 px, reuse a vetted expanded outside contour with a 20 px stroke. This preset-only calibration reduces Chrome edge drift while remaining pure vector; every edited text, font, size, placement, frame, and other outline width falls back to generic doubled strokes.
 - Render fill layers above outlines as repeated `<text>` elements with gradient or solid paint.
 - Create one SVG `<linearGradient>` definition per enabled gradient fill.
 - Use `paint-order: stroke fill` so wide strokes do not eat into the fill.
@@ -71,6 +72,7 @@ Outlined export keeps parsed font data outside the serializable editor document.
 - `editorModel.ts`: shared strict types and document factories.
 - `localFonts.ts`: installed font discovery, deduplication, and CSS family quoting.
 - `textToPath.ts`: local font parsing, missing-glyph validation, glyph layout, and deterministic path geometry.
+- `frame2Calibration.ts`: narrowly fingerprinted canonical outer-outline geometry and safe generic fallback selection.
 - `svg.ts`: environment-independent deterministic layout and serialization.
 - `worker/index.ts`: static asset delivery, security headers, and HTML navigation fallback for hosted previews.
 - `build/sites-vite-plugin.ts`: deployment metadata propagation into the production bundle.
@@ -95,7 +97,7 @@ The worker delegates static requests to the platform asset binding. Requests tha
 - Unit tests for CLI parsing, color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
 - A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
 - CLI smoke checks generate the same file twice and compare it byte for byte.
-- A checked-in Sketch oracle gate validates fixture/font hashes, raster dimensions, color space, alpha bounds, aggregate and per-channel RMSE, RGBA PSNR, and alpha-support IoU/XOR through macOS ImageIO and ImageMagick; each result records the renderer environment.
+- A checked-in Sketch PNG oracle gate validates fixture/font hashes and rasterizes the shared SVG through headless, software-rendered Chrome at device scale factor 2. ImageMagick enforces 99.95% NCC similarity and alpha overlap plus dimensions, color space, alpha bounds, aggregate/per-channel RMSE, RGBA PSNR, and alpha-support XOR limits. macOS ImageIO remains a non-blocking secondary diagnostic, and each result records the renderer environment.
 - Production build verification.
 - Browser checks for the complete edit-to-export journey.
 - Visual captures at desktop and 390 x 844 mobile viewports.

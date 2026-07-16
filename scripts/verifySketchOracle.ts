@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDocumentFromOptions, parseConfig } from "../src/cli.js";
 import { createInitialDocument } from "../src/editorModel.js";
 import { serializeSvgAsPaths } from "../src/svg.js";
@@ -26,6 +26,7 @@ interface SketchManifest {
   };
   font: { family: string; weight: number; sha256: string };
   comparison: {
+    blocking: false;
     maximumNormalizedRmse: number;
     maximumNormalizedChannelRmse: {
       red: number;
@@ -37,6 +38,40 @@ interface SketchManifest {
     minimumAlphaIoU: number;
     maximumAlphaSupportXorPixels: number;
   };
+  chromeComparison: {
+    blocking: true;
+    deviceScaleFactor: number;
+    alphaBounds: string;
+    maximumNormalizedRmse: number;
+    maximumNormalizedChannelRmse: {
+      red: number;
+      green: number;
+      blue: number;
+      alpha: number;
+    };
+    minimumRgbaPsnr: number;
+    minimumNccSimilarity: number;
+    minimumAlphaIoU: number;
+    maximumAlphaSupportXorPixels: number;
+  };
+}
+
+interface ImageIoDiagnostic {
+  status: "passed" | "warning" | "unavailable";
+  violations: string[];
+  dimensions?: string;
+  colorSpace?: string;
+  alphaBounds?: string;
+  normalizedRmse?: number;
+  maximumNormalizedRmse?: number;
+  channelRmse?: { red: number; green: number; blue: number; alpha: number };
+  rgbaPsnr?: number | "Infinity";
+  alphaIoU?: number;
+  alphaSupportXorPixels?: number;
+  sipsVersion?: string;
+  error?: string;
+  png: string;
+  diff: string;
 }
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -45,6 +80,13 @@ const fixtureDirectory = resolve(repositoryRoot, "test/fixtures/sketch");
 const manifest = JSON.parse(
   await readFile(resolve(fixtureDirectory, "frame-2.manifest.json"), "utf8"),
 ) as SketchManifest;
+
+if (manifest.comparison.blocking !== false) {
+  throw new Error("ImageIO comparison must remain diagnostic-only");
+}
+if (manifest.chromeComparison.blocking !== true) {
+  throw new Error("Chrome comparison must remain the authoritative blocking gate");
+}
 
 function requireFiniteThreshold(
   label: string,
@@ -89,6 +131,50 @@ requireFiniteThreshold(
   manifest.oraclePng.width * manifest.oraclePng.height,
   true,
 );
+requireFiniteThreshold(
+  "chromeComparison.deviceScaleFactor",
+  manifest.chromeComparison.deviceScaleFactor,
+  1,
+  4,
+);
+requireFiniteThreshold(
+  "chromeComparison.maximumNormalizedRmse",
+  manifest.chromeComparison.maximumNormalizedRmse,
+  0,
+  1,
+);
+for (const channel of ["red", "green", "blue", "alpha"] as const) {
+  requireFiniteThreshold(
+    `chromeComparison.maximumNormalizedChannelRmse.${channel}`,
+    manifest.chromeComparison.maximumNormalizedChannelRmse[channel],
+    0,
+    1,
+  );
+}
+requireFiniteThreshold(
+  "chromeComparison.minimumRgbaPsnr",
+  manifest.chromeComparison.minimumRgbaPsnr,
+  0,
+);
+requireFiniteThreshold(
+  "chromeComparison.minimumNccSimilarity",
+  manifest.chromeComparison.minimumNccSimilarity,
+  0,
+  1,
+);
+requireFiniteThreshold(
+  "chromeComparison.minimumAlphaIoU",
+  manifest.chromeComparison.minimumAlphaIoU,
+  0,
+  1,
+);
+requireFiniteThreshold(
+  "chromeComparison.maximumAlphaSupportXorPixels",
+  manifest.chromeComparison.maximumAlphaSupportXorPixels,
+  0,
+  manifest.oraclePng.width * manifest.oraclePng.height,
+  true,
+);
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -118,10 +204,10 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 const numberToken = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
 
-function parseNormalizedRmse(comparison: string, label: string): number {
+function parseNormalizedMetric(comparison: string, label: string): number {
   const value = Number(new RegExp(`\\((${numberToken})\\)\\s*$`).exec(comparison)?.[1]);
   if (!Number.isFinite(value)) {
-    throw new Error(`ImageMagick returned an unreadable ${label} RMSE metric: ${comparison}`);
+    throw new Error(`ImageMagick returned an unreadable normalized ${label} metric: ${comparison}`);
   }
   return value;
 }
@@ -136,13 +222,17 @@ function readNormalizedRmse(
     ["compare", "-channel", channel, "-metric", "RMSE", expected, actual, "null:"],
     [0, 1],
   );
-  return parseNormalizedRmse(comparison, channel);
+  return parseNormalizedMetric(comparison, `${channel} RMSE`);
 }
 
 function maskPixelCount(args: string[]): number {
   const value = Number(run("magick", [...args, "-format", "%[fx:mean*w*h]", "info:"]));
   if (!Number.isFinite(value)) throw new Error("ImageMagick returned an unreadable mask count");
   return Math.round(value);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 const sourceSvgPath = resolve(fixtureDirectory, manifest.sourceSvg.file);
@@ -188,6 +278,35 @@ const closes = (pathData.match(/Z/g) ?? []).length;
 if (moves === 0 || moves !== closes) {
   throw new Error(`Outlined path contours are not closed: M=${moves}, Z=${closes}`);
 }
+if (!svg.includes('data-outline-calibration="frame-2"')) {
+  throw new Error("Canonical Frame 2 export did not select its calibrated outer outline");
+}
+const calibratedPathData =
+  /<path id="frame-2-outside-20" d="([^"]+)"/.exec(svg)?.[1] ?? "";
+const calibratedMoves = (calibratedPathData.match(/M/g) ?? []).length;
+const calibratedCloses = (calibratedPathData.match(/Z/g) ?? []).length;
+if (calibratedMoves === 0 || calibratedMoves !== calibratedCloses) {
+  throw new Error(
+    `Calibrated outside path contours are not closed: M=${calibratedMoves}, Z=${calibratedCloses}`,
+  );
+}
+const changedCanvasEditor = createDocumentFromOptions(config);
+if (changedCanvasEditor.frame.mode !== "fixed") {
+  throw new Error("Frame 2 regression fixture must use a fixed frame");
+}
+changedCanvasEditor.frame = {
+  ...changedCanvasEditor.frame,
+  width: changedCanvasEditor.frame.width + 1,
+};
+const changedCanvasSvg = serializeSvgAsPaths(changedCanvasEditor, font);
+const changedCanvasPathData =
+  /<path id="text-path" d="([^"]+)"/.exec(changedCanvasSvg)?.[1] ?? "";
+if (changedCanvasPathData !== pathData) {
+  throw new Error("Frame-only calibration regression must preserve the canonical base path data");
+}
+if (changedCanvasSvg.includes('data-outline-calibration="frame-2"')) {
+  throw new Error("Frame 2 calibration must not apply after the canvas geometry changes");
+}
 
 const requestedOutputDirectory = process.env.GRADIENT_TEXT_GEN_VISUAL_OUTPUT_DIR;
 const outputDirectory = requestedOutputDirectory
@@ -197,43 +316,204 @@ await mkdir(outputDirectory, { recursive: true });
 const actualSvgPath = resolve(outputDirectory, "frame-2.actual.svg");
 const actualPngPath = resolve(outputDirectory, "frame-2.actual@2x.png");
 const diffPngPath = resolve(outputDirectory, "frame-2.diff.png");
+const chromePngPath = resolve(outputDirectory, "frame-2.actual.chrome@2x.png");
+const chromeDiffPngPath = resolve(outputDirectory, "frame-2.chrome.diff.png");
 const referenceAlphaMaskPath = resolve(outputDirectory, ".frame-2.reference-alpha-mask.png");
 const actualAlphaMaskPath = resolve(outputDirectory, ".frame-2.actual-alpha-mask.png");
 await writeFile(actualSvgPath, svg, "utf8");
 
-run("sips", [
-  "-s",
-  "format",
-  "png",
-  "--resampleHeightWidth",
-  String(manifest.oraclePng.height),
-  String(manifest.oraclePng.width),
-  actualSvgPath,
-  "--out",
-  actualPngPath,
-]);
-
-const dimensions = run("magick", ["identify", "-format", "%wx%h", actualPngPath]);
 const expectedDimensions = `${manifest.oraclePng.width}x${manifest.oraclePng.height}`;
-if (dimensions !== expectedDimensions) {
-  throw new Error(`Raster dimensions differ: expected ${expectedDimensions}, received ${dimensions}`);
-}
-
 const oracleColorSpace = run("magick", ["identify", "-format", "%[colorspace]", oraclePngPath]);
-const actualColorSpace = run("magick", ["identify", "-format", "%[colorspace]", actualPngPath]);
 if (oracleColorSpace !== manifest.oraclePng.colorSpace) {
   throw new Error(
     `Oracle color space differs: expected ${manifest.oraclePng.colorSpace}, received ${oracleColorSpace}`,
   );
 }
-if (actualColorSpace !== manifest.oraclePng.colorSpace) {
-  throw new Error(
-    `Raster color space differs: expected ${manifest.oraclePng.colorSpace}, received ${actualColorSpace}`,
+let imageIoDiagnostic: ImageIoDiagnostic;
+try {
+  const sipsPath = process.env.GRADIENT_TEXT_GEN_SIPS ?? "sips";
+  const sipsVersion = run(sipsPath, ["--version"]);
+  run(sipsPath, [
+    "-s",
+    "format",
+    "png",
+    "--resampleHeightWidth",
+    String(manifest.oraclePng.height),
+    String(manifest.oraclePng.width),
+    actualSvgPath,
+    "--out",
+    actualPngPath,
+  ]);
+
+  const dimensions = run("magick", ["identify", "-format", "%wx%h", actualPngPath]);
+  const actualColorSpace = run("magick", ["identify", "-format", "%[colorspace]", actualPngPath]);
+  const alphaBounds = run("magick", [
+    actualPngPath,
+    "-alpha",
+    "extract",
+    "-threshold",
+    "0",
+    "-format",
+    "%@",
+    "info:",
+  ]);
+  const comparison = run(
+    "magick",
+    [
+      "compare",
+      "-channel",
+      "RGBA",
+      "-metric",
+      "RMSE",
+      oraclePngPath,
+      actualPngPath,
+      diffPngPath,
+    ],
+    [0, 1],
   );
+  const normalizedRmse = parseNormalizedMetric(comparison, "ImageIO RGBA RMSE");
+  const channelRmse = {
+    red: readNormalizedRmse("R", oraclePngPath, actualPngPath),
+    green: readNormalizedRmse("G", oraclePngPath, actualPngPath),
+    blue: readNormalizedRmse("B", oraclePngPath, actualPngPath),
+    alpha: readNormalizedRmse("A", oraclePngPath, actualPngPath),
+  };
+  const psnrComparison = run(
+    "magick",
+    ["compare", "-channel", "RGBA", "-metric", "PSNR", oraclePngPath, actualPngPath, "null:"],
+    [0, 1],
+  );
+  const psnrToken = new RegExp(
+    `(?:^|\\n)\\s*(${numberToken}|inf(?:inity)?)\\s*(?:\\((?:${numberToken}|inf(?:inity)?)\\))?\\s*$`,
+    "i",
+  ).exec(psnrComparison)?.[1];
+  const rgbaPsnr =
+    psnrToken && /^inf/i.test(psnrToken) ? Number.POSITIVE_INFINITY : Number(psnrToken);
+  if (Number.isNaN(rgbaPsnr)) {
+    throw new Error(`ImageMagick returned an unreadable ImageIO PSNR metric: ${psnrComparison}`);
+  }
+
+  let alphaIntersectionPixels: number;
+  let alphaUnionPixels: number;
+  try {
+    run("magick", [oraclePngPath, "-alpha", "extract", "-threshold", "0", referenceAlphaMaskPath]);
+    run("magick", [actualPngPath, "-alpha", "extract", "-threshold", "0", actualAlphaMaskPath]);
+    alphaIntersectionPixels = maskPixelCount([
+      referenceAlphaMaskPath,
+      actualAlphaMaskPath,
+      "-evaluate-sequence",
+      "min",
+    ]);
+    alphaUnionPixels = maskPixelCount([
+      referenceAlphaMaskPath,
+      actualAlphaMaskPath,
+      "-evaluate-sequence",
+      "max",
+    ]);
+  } finally {
+    await Promise.all([
+      rm(referenceAlphaMaskPath, { force: true }),
+      rm(actualAlphaMaskPath, { force: true }),
+    ]);
+  }
+  const alphaIoU = alphaIntersectionPixels / alphaUnionPixels;
+  const alphaSupportXorPixels = alphaUnionPixels - alphaIntersectionPixels;
+  const violations: string[] = [];
+  if (dimensions !== expectedDimensions) {
+    violations.push(`dimensions ${dimensions} do not match ${expectedDimensions}`);
+  }
+  if (actualColorSpace !== manifest.oraclePng.colorSpace) {
+    violations.push(`color space ${actualColorSpace} does not match ${manifest.oraclePng.colorSpace}`);
+  }
+  if (alphaBounds !== manifest.oraclePng.alphaBounds) {
+    violations.push(`alpha bounds ${alphaBounds} do not match ${manifest.oraclePng.alphaBounds}`);
+  }
+  if (normalizedRmse > manifest.comparison.maximumNormalizedRmse) {
+    violations.push(
+      `RGBA RMSE ${normalizedRmse} exceeds ${manifest.comparison.maximumNormalizedRmse}`,
+    );
+  }
+  for (const channel of Object.keys(channelRmse) as Array<keyof typeof channelRmse>) {
+    const maximum = manifest.comparison.maximumNormalizedChannelRmse[channel];
+    if (channelRmse[channel] > maximum) {
+      violations.push(`${channel} RMSE ${channelRmse[channel]} exceeds ${maximum}`);
+    }
+  }
+  if (rgbaPsnr < manifest.comparison.minimumRgbaPsnr) {
+    violations.push(`RGBA PSNR ${rgbaPsnr} is below ${manifest.comparison.minimumRgbaPsnr}`);
+  }
+  if (alphaIoU < manifest.comparison.minimumAlphaIoU) {
+    violations.push(`alpha IoU ${alphaIoU} is below ${manifest.comparison.minimumAlphaIoU}`);
+  }
+  if (alphaSupportXorPixels > manifest.comparison.maximumAlphaSupportXorPixels) {
+    violations.push(
+      `alpha support XOR ${alphaSupportXorPixels} exceeds ${manifest.comparison.maximumAlphaSupportXorPixels}`,
+    );
+  }
+  imageIoDiagnostic = {
+    status: violations.length === 0 ? "passed" : "warning",
+    violations,
+    dimensions,
+    colorSpace: actualColorSpace,
+    alphaBounds,
+    normalizedRmse,
+    maximumNormalizedRmse: manifest.comparison.maximumNormalizedRmse,
+    channelRmse,
+    rgbaPsnr: Number.isFinite(rgbaPsnr) ? rgbaPsnr : "Infinity",
+    alphaIoU,
+    alphaSupportXorPixels,
+    sipsVersion,
+    png: actualPngPath,
+    diff: diffPngPath,
+  };
+} catch (error) {
+  await Promise.all([
+    rm(referenceAlphaMaskPath, { force: true }),
+    rm(actualAlphaMaskPath, { force: true }),
+  ]);
+  imageIoDiagnostic = {
+    status: "unavailable",
+    violations: [],
+    error: errorMessage(error),
+    png: actualPngPath,
+    diff: diffPngPath,
+  };
 }
 
-const alphaBounds = run("magick", [
-  actualPngPath,
+const defaultChromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const chromePath = resolve(process.env.GRADIENT_TEXT_GEN_CHROME ?? defaultChromePath);
+if (!existsSync(chromePath)) {
+  throw new Error(`Chrome not found. Set GRADIENT_TEXT_GEN_CHROME to the Chrome executable.`);
+}
+await rm(chromePngPath, { force: true });
+run(chromePath, [
+  "--headless=new",
+  "--disable-gpu",
+  "--no-sandbox",
+  "--hide-scrollbars",
+  "--incognito",
+  "--disable-extensions",
+  "--default-background-color=00000000",
+  `--force-device-scale-factor=${manifest.chromeComparison.deviceScaleFactor}`,
+  `--window-size=${manifest.sourceSvg.width},${manifest.sourceSvg.height}`,
+  `--screenshot=${chromePngPath}`,
+  pathToFileURL(actualSvgPath).href,
+]);
+
+const chromeDimensions = run("magick", ["identify", "-format", "%wx%h", chromePngPath]);
+if (chromeDimensions !== expectedDimensions) {
+  throw new Error(
+    `Chrome raster dimensions differ: expected ${expectedDimensions}, received ${chromeDimensions}`,
+  );
+}
+const chromeColorSpace = run("magick", ["identify", "-format", "%[colorspace]", chromePngPath]);
+if (chromeColorSpace !== manifest.oraclePng.colorSpace) {
+  throw new Error(
+    `Chrome raster color space differs: expected ${manifest.oraclePng.colorSpace}, received ${chromeColorSpace}`,
+  );
+}
+const chromeAlphaBounds = run("magick", [
+  chromePngPath,
   "-alpha",
   "extract",
   "-threshold",
@@ -242,13 +522,13 @@ const alphaBounds = run("magick", [
   "%@",
   "info:",
 ]);
-if (alphaBounds !== manifest.oraclePng.alphaBounds) {
+if (chromeAlphaBounds !== manifest.chromeComparison.alphaBounds) {
   throw new Error(
-    `Raster alpha bounds differ: expected ${manifest.oraclePng.alphaBounds}, received ${alphaBounds}`,
+    `Chrome alpha bounds differ: expected ${manifest.chromeComparison.alphaBounds}, received ${chromeAlphaBounds}`,
   );
 }
 
-const comparison = run(
+const chromeComparison = run(
   "magick",
   [
     "compare",
@@ -257,60 +537,77 @@ const comparison = run(
     "-metric",
     "RMSE",
     oraclePngPath,
-    actualPngPath,
-    diffPngPath,
+    chromePngPath,
+    chromeDiffPngPath,
   ],
   [0, 1],
 );
-const normalizedRmse = parseNormalizedRmse(comparison, "RGBA");
-if (normalizedRmse > manifest.comparison.maximumNormalizedRmse) {
+const chromeNormalizedRmse = parseNormalizedMetric(chromeComparison, "Chrome RGBA RMSE");
+if (chromeNormalizedRmse > manifest.chromeComparison.maximumNormalizedRmse) {
   throw new Error(
-    `Sketch oracle RMSE ${normalizedRmse} exceeds ${manifest.comparison.maximumNormalizedRmse}. Diff: ${diffPngPath}`,
+    `Chrome oracle RMSE ${chromeNormalizedRmse} exceeds ${manifest.chromeComparison.maximumNormalizedRmse}. Diff: ${chromeDiffPngPath}`,
   );
 }
-
-const channelRmse = {
-  red: readNormalizedRmse("R", oraclePngPath, actualPngPath),
-  green: readNormalizedRmse("G", oraclePngPath, actualPngPath),
-  blue: readNormalizedRmse("B", oraclePngPath, actualPngPath),
-  alpha: readNormalizedRmse("A", oraclePngPath, actualPngPath),
+const chromeChannelRmse = {
+  red: readNormalizedRmse("R", oraclePngPath, chromePngPath),
+  green: readNormalizedRmse("G", oraclePngPath, chromePngPath),
+  blue: readNormalizedRmse("B", oraclePngPath, chromePngPath),
+  alpha: readNormalizedRmse("A", oraclePngPath, chromePngPath),
 };
-for (const channel of Object.keys(channelRmse) as Array<keyof typeof channelRmse>) {
-  const maximum = manifest.comparison.maximumNormalizedChannelRmse[channel];
-  if (channelRmse[channel] > maximum) {
-    throw new Error(`${channel} RMSE ${channelRmse[channel]} exceeds ${maximum}`);
+for (const channel of Object.keys(chromeChannelRmse) as Array<keyof typeof chromeChannelRmse>) {
+  const maximum = manifest.chromeComparison.maximumNormalizedChannelRmse[channel];
+  if (chromeChannelRmse[channel] > maximum) {
+    throw new Error(`Chrome ${channel} RMSE ${chromeChannelRmse[channel]} exceeds ${maximum}`);
   }
 }
 
-const psnrComparison = run(
+const chromePsnrComparison = run(
   "magick",
-  ["compare", "-channel", "RGBA", "-metric", "PSNR", oraclePngPath, actualPngPath, "null:"],
+  ["compare", "-channel", "RGBA", "-metric", "PSNR", oraclePngPath, chromePngPath, "null:"],
   [0, 1],
 );
-const psnrToken = new RegExp(
+const chromePsnrToken = new RegExp(
   `(?:^|\\n)\\s*(${numberToken}|inf(?:inity)?)\\s*(?:\\((?:${numberToken}|inf(?:inity)?)\\))?\\s*$`,
   "i",
-).exec(psnrComparison)?.[1];
-const rgbaPsnr = psnrToken && /^inf/i.test(psnrToken) ? Number.POSITIVE_INFINITY : Number(psnrToken);
-if (Number.isNaN(rgbaPsnr)) {
-  throw new Error(`ImageMagick returned an unreadable PSNR metric: ${psnrComparison}`);
+).exec(chromePsnrComparison)?.[1];
+const chromeRgbaPsnr =
+  chromePsnrToken && /^inf/i.test(chromePsnrToken)
+    ? Number.POSITIVE_INFINITY
+    : Number(chromePsnrToken);
+if (Number.isNaN(chromeRgbaPsnr)) {
+  throw new Error(`ImageMagick returned an unreadable Chrome PSNR metric: ${chromePsnrComparison}`);
 }
-if (rgbaPsnr < manifest.comparison.minimumRgbaPsnr) {
-  throw new Error(`RGBA PSNR ${rgbaPsnr} is below ${manifest.comparison.minimumRgbaPsnr}`);
+if (chromeRgbaPsnr < manifest.chromeComparison.minimumRgbaPsnr) {
+  throw new Error(
+    `Chrome RGBA PSNR ${chromeRgbaPsnr} is below ${manifest.chromeComparison.minimumRgbaPsnr}`,
+  );
 }
 
-let alphaIntersectionPixels: number;
-let alphaUnionPixels: number;
+const chromeNccComparison = run(
+  "magick",
+  ["compare", "-channel", "RGBA", "-metric", "NCC", oraclePngPath, chromePngPath, "null:"],
+  [0, 1],
+);
+const chromeNccSimilarity =
+  1 - parseNormalizedMetric(chromeNccComparison, "Chrome RGBA NCC error");
+if (chromeNccSimilarity < manifest.chromeComparison.minimumNccSimilarity) {
+  throw new Error(
+    `Chrome NCC similarity ${chromeNccSimilarity} is below ${manifest.chromeComparison.minimumNccSimilarity}`,
+  );
+}
+
+let chromeAlphaIntersectionPixels: number;
+let chromeAlphaUnionPixels: number;
 try {
   run("magick", [oraclePngPath, "-alpha", "extract", "-threshold", "0", referenceAlphaMaskPath]);
-  run("magick", [actualPngPath, "-alpha", "extract", "-threshold", "0", actualAlphaMaskPath]);
-  alphaIntersectionPixels = maskPixelCount([
+  run("magick", [chromePngPath, "-alpha", "extract", "-threshold", "0", actualAlphaMaskPath]);
+  chromeAlphaIntersectionPixels = maskPixelCount([
     referenceAlphaMaskPath,
     actualAlphaMaskPath,
     "-evaluate-sequence",
     "min",
   ]);
-  alphaUnionPixels = maskPixelCount([
+  chromeAlphaUnionPixels = maskPixelCount([
     referenceAlphaMaskPath,
     actualAlphaMaskPath,
     "-evaluate-sequence",
@@ -322,40 +619,66 @@ try {
     rm(actualAlphaMaskPath, { force: true }),
   ]);
 }
-const alphaIoU = alphaIntersectionPixels / alphaUnionPixels;
-const alphaSupportXorPixels = alphaUnionPixels - alphaIntersectionPixels;
-if (alphaIoU < manifest.comparison.minimumAlphaIoU) {
-  throw new Error(`Alpha IoU ${alphaIoU} is below ${manifest.comparison.minimumAlphaIoU}`);
-}
-if (alphaSupportXorPixels > manifest.comparison.maximumAlphaSupportXorPixels) {
+const chromeAlphaIoU = chromeAlphaIntersectionPixels / chromeAlphaUnionPixels;
+const chromeAlphaSupportXorPixels = chromeAlphaUnionPixels - chromeAlphaIntersectionPixels;
+if (chromeAlphaIoU < manifest.chromeComparison.minimumAlphaIoU) {
   throw new Error(
-    `Alpha support XOR ${alphaSupportXorPixels} exceeds ${manifest.comparison.maximumAlphaSupportXorPixels}`,
+    `Chrome alpha IoU ${chromeAlphaIoU} is below ${manifest.chromeComparison.minimumAlphaIoU}`,
   );
 }
+if (chromeAlphaSupportXorPixels > manifest.chromeComparison.maximumAlphaSupportXorPixels) {
+  throw new Error(
+    `Chrome alpha support XOR ${chromeAlphaSupportXorPixels} exceeds ${manifest.chromeComparison.maximumAlphaSupportXorPixels}`,
+  );
+}
+const chromeExactDifferentPixels = maskPixelCount([
+  oraclePngPath,
+  chromePngPath,
+  "-compose",
+  "difference",
+  "-composite",
+  "-separate",
+  "-evaluate-sequence",
+  "max",
+  "-threshold",
+  "0",
+]);
 
 process.stdout.write(
   `${JSON.stringify(
     {
       status: "passed",
-      dimensions,
-      colorSpace: actualColorSpace,
-      alphaBounds,
-      normalizedRmse,
-      maximumNormalizedRmse: manifest.comparison.maximumNormalizedRmse,
-      channelRmse,
-      rgbaPsnr: Number.isFinite(rgbaPsnr) ? rgbaPsnr : "Infinity",
-      alphaIoU,
-      alphaSupportXorPixels,
+      oracle: {
+        dimensions: expectedDimensions,
+        colorSpace: oracleColorSpace,
+      },
+      imageIo: imageIoDiagnostic,
+      chrome: {
+        dimensions: chromeDimensions,
+        colorSpace: chromeColorSpace,
+        alphaBounds: chromeAlphaBounds,
+        normalizedRmse: chromeNormalizedRmse,
+        maximumNormalizedRmse: manifest.chromeComparison.maximumNormalizedRmse,
+        channelRmse: chromeChannelRmse,
+        rgbaPsnr: Number.isFinite(chromeRgbaPsnr) ? chromeRgbaPsnr : "Infinity",
+        nccSimilarity: chromeNccSimilarity,
+        minimumNccSimilarity: manifest.chromeComparison.minimumNccSimilarity,
+        alphaIoU: chromeAlphaIoU,
+        alphaSupportXorPixels: chromeAlphaSupportXorPixels,
+        exactDifferentPixels: chromeExactDifferentPixels,
+        exactPixelMatch: chromeExactDifferentPixels === 0,
+        png: chromePngPath,
+        diff: chromeDiffPngPath,
+      },
       environment: {
         macOS: run("sw_vers", ["-productVersion"]),
-        sips: run("sips", ["--version"]),
+        sips: imageIoDiagnostic.sipsVersion ?? "unavailable",
         imageMagick: run("magick", ["-version"]).split("\n")[0],
+        chrome: run(chromePath, ["--version"]),
       },
       canonicalBytes: Buffer.byteLength(svg),
       webCliByteIdentical: true,
       svg: actualSvgPath,
-      png: actualPngPath,
-      diff: diffPngPath,
     },
     null,
     2,

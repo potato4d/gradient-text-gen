@@ -6,7 +6,7 @@ Build a browser-based editor that lets creators compose stylized text, preview i
 
 ## Visual References
 
-- `test/fixtures/sketch/frame-2.svg`: layered vector source with a multi-stop yellow gradient, a white outer outline, and a black inner outline.
+- `test/fixtures/sketch/frame-2.svg`: supporting vector evidence for the layered gradient and outline geometry; matching its document structure is not an output requirement.
 - `test/fixtures/sketch/frame-2@2x.png`: canonical Sketch-rendered visual oracle for the Frame 2 preset.
 - `image-1.png`: compact dark color editor with an editable stop rail, a two-dimensional color field, hue control, and direct color values.
 - `image-2.png`: layered fill and border controls with enable toggles, previews, opacity, border placement, and width.
@@ -101,13 +101,14 @@ The references define the interaction density and output capabilities. The appli
 
 ## Canonical Visual Oracle
 
-The Frame 2 fixture is the exact visual contract for one named outlined configuration. Its config, source SVG, Sketch PNG, font fingerprint, dimensions, rasterizer, comparison metric, and threshold are declared once in `test/fixtures/sketch/frame-2.manifest.json` and `frame-2.config.json`.
+The final Frame 2 PNG is the sole visual contract for one named outlined configuration. Its config, supporting source SVG, Sketch PNG, font fingerprint, dimensions, rasterizers, comparison metrics, and thresholds are declared once in `test/fixtures/sketch/frame-2.manifest.json` and `frame-2.config.json`.
 
 - The selected font bytes must match the declared DelaSuko Gothic One Regular SHA-256 before comparison.
 - The shared serializer must emit an 874 × 310 outlined SVG with closed path contours, the fixed reference origin, exact gradient stops, miter joins, black 12 px outside coverage, and white 20 px outside coverage.
-- macOS ImageIO rasterizes the generated SVG to a transparent 1748 × 620 PNG.
-- ImageMagick requires the exact declared dimensions, sRGB color space, and alpha bounds, then enforces manifest thresholds for aggregate and per-channel normalized RMSE, RGBA PSNR, alpha-support intersection-over-union, and alpha-support XOR pixels.
-- Exact zero-error pixels across Sketch and another SVG rasterizer are a non-goal because edge antialiasing and gradient quantization differ. Embedding the PNG to force zero error is prohibited; the delivered artifact remains vector SVG.
+- Chrome rasterizes the generated 874 × 310 SVG at device scale factor 2 into the authoritative 1748 × 620 browser comparison surface.
+- ImageMagick requires the exact declared dimensions, sRGB color space, and alpha bounds, then enforces at least `0.9995` normalized cross-correlation similarity, independently bounded aggregate/per-channel RMSE, at least `0.9995` alpha-support intersection-over-union, RGBA PSNR, and alpha-support XOR limits.
+- macOS ImageIO remains a non-blocking secondary cross-renderer diagnostic with its own stricter advisory geometry and color thresholds.
+- Literal zero-error pixels are not required after the accepted 99.95% similarity decision. Embedding the PNG or encoding raster pixels as vector geometry to force equality is prohibited; the delivered artifact remains editable vector SVG paths.
 
 ## Acceptance Criteria
 
@@ -122,6 +123,6 @@ The Frame 2 fixture is the exact visual contract for one named outlined configur
 - Equivalent CLI and web settings produce byte-identical SVG markup.
 - CLI file/stdout, browser preview, clipboard, and download use the same canonical UTF-8 SVG bytes without adding an end-of-file newline.
 - In outlined mode, the preview renders the same path-based markup and dimensions used for copy and download.
-- The canonical Frame 2 visual verification passes every manifest dimension, alpha-bound, color-error, signal-quality, and alpha-support threshold.
+- The canonical Frame 2 Chrome verification passes the manifest's 99.95% similarity and alpha-overlap minimums plus every dimension, alpha-bound, color-error, and signal-quality threshold.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.

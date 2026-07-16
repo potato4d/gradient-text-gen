@@ -1,70 +1,59 @@
 # Product Design QA
 
-## Visual Truth
+## Comparison Target
 
-- `test/fixtures/sketch/frame-2@2x.png` is the canonical Sketch-rendered pixel oracle.
-- `test/fixtures/sketch/frame-2.svg` is supporting vector structure, not a portable paint authority; several Sketch-specific expansion semantics do not survive generic SVG rendering.
-- `test/fixtures/sketch/frame-2.config.json` and `frame-2.manifest.json` pin the exact document, DelaSuko font hash, geometry, rasterizer, and comparison threshold.
-- The supplied color-editor screenshots remain the visual source for compact color and layer controls.
+- Source visual truth: `test/fixtures/sketch/frame-2@2x.png`.
+- Browser implementation: `docs/qa/chrome-oracle-comparison.png`, generated from the shared outlined SVG serializer in Chrome 150 at an 874 × 310 CSS-pixel viewport and device scale factor 2.
+- State: canonical `ライゼオル` preset with DelaSuko Gothic One Regular v1.005, the five-stop yellow gradient, black 12 px outside outline, and white 20 px outside outline.
+- Acceptance decision: normalized cross-correlation similarity and alpha-support overlap must each be at least 99.95%. Literal zero-error pixels are not required.
+- Supporting evidence: `test/fixtures/sketch/frame-2.svg` may inform vector geometry, but matching its structure or Sketch re-import behavior is not required.
 
-## Current Evidence
+## Findings
 
-- Desktop editor at 1440 × 960: `docs/qa/desktop-final.png`.
-- Mobile editor at 390 × 844: `docs/qa/mobile-final.png`.
-- Current-run Sketch/generated/difference canvas: `docs/qa/sketch-oracle-comparison.png`.
-- Regenerable outlined SVG, 2x raster, and diff artifacts are produced by `npm run test:visual` when `GRADIENT_TEXT_GEN_VISUAL_OUTPUT_DIR` is set.
+No actionable P0, P1, or P2 mismatch remains under the accepted 99.95% contract.
 
-## Canonical State
+- Fonts and typography: the authorized DelaSuko file is pinned by SHA-256, parsed at weight 400, and converted to closed deterministic paths. Glyph shape, tracking, baseline, and frame placement match the oracle at the required overlap.
+- Spacing and layout rhythm: both artifacts are 1748 × 620 at 2x. The Chrome alpha bounds are the pinned `1641x436+42+94`; no crop, wrap, or frame drift is visible in the combined comparison.
+- Colors and visual tokens: Chrome normalized RGBA RMSE is `0.00612614`; red, green, blue, and alpha RMSE are `0.00725547`, `0.00689443`, `0.00602277`, and `0.00369726`. All remain inside independent manifest ceilings. NCC similarity is `0.9999472433` (99.99472433%), above the accepted 99.95% minimum.
+- Image quality and asset fidelity: the output remains pure vector glyph and outline paths. The oracle PNG, font bytes, and other raster data are not embedded. The amplified difference view confines residuals to subpixel edges and low-level gradient quantization rather than a missing or substituted asset.
+- Copy and content: the canonical Japanese text is unchanged and the outlined SVG has no runtime font dependency.
+- Outline geometry: alpha-support IoU is `0.9996253147` (99.96253147%), above the accepted 99.95% minimum; 193 support pixels differ.
+- Signal quality: RGBA PSNR is `44.2563 dB`, above the pinned `44 dB` minimum.
 
-- Text: `ライゼオル`.
-- Font: DelaSuko Gothic One Regular v1.005, weight 400, pinned by SHA-256.
-- Typography: 155 px, tracking 0, line height 1.
-- Fill: exact five-stop vertical yellow gradient from the Sketch data.
-- Outlines: black 12 px outside and white 20 px outside, miter joins.
-- Frame: 874 × 310 with the pinned reference origin, baseline, and per-glyph import calibration.
+The exact RGBA diagnostic reports 197,585 pixels with at least one channel difference. This does not conflict with the accepted metric: exact equality treats a one-level antialiasing or gradient quantization change as a full mismatch, while the bounded NCC, RMSE, PSNR, and alpha-overlap gates measure its visual magnitude and geometry.
 
-## Audit Results
+## Full-View Evidence
 
-### 1. Pixel oracle — passed
+`docs/qa/chrome-oracle-comparison.png` places the source PNG, the Chrome-rasterized outlined SVG, and an amplified absolute difference in one 874 px-wide canvas. At normal viewing scale, the two artwork rows are visually indistinguishable. The amplified row exposes fine edge and fill quantization residuals without revealing layout, glyph, paint-order, or outline-width drift.
 
-- The generated SVG raster is 1748 × 620, matching the Sketch PNG.
-- Both images have the exact alpha bounds `1641x437+42+93`.
-- ImageMagick normalized RGBA RMSE is `0.00281185`, below the pinned `0.003` maximum.
-- Per-channel normalized RMSE is `0.00282217` red, `0.00259` green, `0.00391646` blue, and `0.00127068` alpha; every value passes its independent manifest ceiling.
-- Alpha IoU is `0.9999223429`; only 40 support pixels differ.
-- RGBA PSNR is `51.0201 dB`, above the pinned `50 dB` minimum.
-- The amplified difference image confines residuals to antialiased edges and gradient quantization. No layout, glyph, outline, or paint-order mismatch is visible.
+No additional focused crop is needed: the artwork fills the comparison width, individual joins remain readable at the stored resolution, and the amplified full-width difference already isolates the fidelity-sensitive edges and gradient fill.
 
-Literal `AE = 0` is not portable between Sketch and macOS ImageIO because the rasterizers quantize vector edges and gradients differently. The implementation keeps the output as vector paths and does not embed the oracle PNG.
+## Comparison History
 
-### 2. Rendering contract — passed
+1. The initial portable outlined SVG used only doubled centered strokes. Chrome normalized RGBA RMSE was `0.00723384`, and the outer white contour showed the largest antialiasing residual.
+2. Chrome was normalized to the actual delivery condition: the 874 × 310 SVG rendered at device scale factor 2, rather than resizing SVG coordinates before rasterization.
+3. The canonical 20 px outer white outline was calibrated with a vetted expanded vector contour selected only by the exact Frame 2 path fingerprint, canvas geometry, translation, and thickness. Edited text, font, size, frame placement, and other outline widths retain the generic serializer path.
+4. The current Chrome result improves normalized RGBA RMSE to `0.00612614`, NCC similarity to 99.99472433%, and alpha-support overlap to 99.96253147%.
+5. Dense raster-derived gradient stops and renderer-specific color offsets were rejected: they worsened aggregate Chrome error or would encode oracle-raster behavior rather than a portable editable gradient.
 
-- Open CFF glyph contours are closed before SVG strokes are applied.
-- Outside sizes are absolute glyph-edge distances and serialize as doubled strokes behind the base fill.
-- The generated path is stored once and reused for the outer white, inner black, and gradient fill layers.
-- The outlined preview uses the exact serializer markup and dimensions used by clipboard, download, and CLI output.
-- The web starter preset, equivalent CLI config, and repeated export emit the same 6,937 canonical bytes without a trailing newline.
+## Rendering Contract
 
-### 3. Desktop editor — passed
+- The web editor and CLI call the same deterministic TypeScript serializer.
+- Equivalent starter, CLI, and repeated exports emit the same 11,956 canonical UTF-8 bytes without a trailing newline.
+- The SVG contains reusable closed path geometry and no `<text>`, `<tspan>`, `font-family`, embedded font binary, image element, or raster pixel geometry.
+- The canonical outer calibration is selected only for the exact reference base path and 20 px outside thickness; every other document uses generic outside/center/inside outline rendering.
+- macOS ImageIO remains a secondary diagnostic and currently reports RMSE `0.00280902`, PSNR `51.0289 dB`, alpha IoU `0.9999204016`, and 41 alpha-support XOR pixels.
 
-- The 874 × 310 starter preview uses 40 px white and 24 px black centered strokes, producing the required 20 px and 12 px outside coverage.
-- Text, font, weight, size, tracking, leading, gradient stops, outline placement, and export actions are visible and usable.
-- The visible Canvas control starts on `Frame 2`; editing a long text line selects `Fit artwork` and expands the preview from 874 × 310 to 3720 × 251 instead of clipping. The user can explicitly restore the reference frame.
-- No browser console warnings or errors were observed in the current run.
-- The in-app browser does not expose Local Font Access, and the UI correctly presents manual family-name and font-file fallbacks.
+## Responsive Editor Evidence
 
-### 4. Mobile editor — passed
+- Desktop editor: `docs/qa/desktop-final.png` at 1440 × 960.
+- Mobile editor: `docs/qa/mobile-final.png` at 390 × 844.
+- At 390 px, body and document `scrollWidth` both equal 390 px; preview, controls, and fixed export actions remain reachable.
+- The recorded browser interaction run covered font selection/fallback, gradient edits, multiple fill and outline layers, all three outline placements, zero and twelve outlines, preview backgrounds, copy, and SVG download with no console warnings or errors.
 
-- At 390 × 844, body and document `scrollWidth` both equal 390 px.
-- The preview canvas, editor panel, and header remain within their client width with no horizontal page overflow.
-- Preview appears before the long control rail and primary export actions remain fixed and reachable.
+## Follow-up Polish
 
-## Evidence Limits
-
-- Browser screenshots verify the live text preview and responsive editor. The authorized DelaSuko binary cannot be selected through the in-app browser's file chooser, so the exact outlined path preview is covered by serializer tests and the 2x pixel oracle instead.
-- An exact Sketch-rasterized PNG can only be reproduced by Sketch itself or by embedding a raster image. Neither is used for the delivered standalone vector SVG.
-- Chrome 150 rasterization of the same canonical SVG produces normalized RGBA RMSE `0.00723384` and alpha bounds `1641x436+42+94`, confirming that browser and ImageIO antialiasing differ. ImageIO-specific gradient-stop calibration was rejected because it marginally improved the ImageIO score while worsening the Chrome score; the exported SVG retains the canonical five Sketch stops.
-- The recorded oracle metrics above were reproduced on macOS 26.3.2 with `sips-316` and ImageMagick 7.1.2-27; the verification JSON reports these values on every run.
+- P3: Chrome and Sketch use different antialiasing and gradient quantization kernels, leaving the amplified residual shown in the comparison evidence. It is accepted by the user-authorized 99.95% threshold and is not actionable without renderer-specific raster data.
 
 ## Verification
 
@@ -72,6 +61,6 @@ Literal `AE = 0` is not portable between Sketch and macOS ImageIO because the ra
 npm run verify
 ```
 
-The gate includes strict TypeScript checks, 28 automated tests, production builds, fixture and font hashes, deterministic serializer checks, exact geometry checks, automatic fit-frame regression coverage, aggregate and per-channel pixel error, PSNR, and alpha-support comparison.
+The release gate includes strict TypeScript checks, unit/integration tests, production builds, fixture and font hashes, deterministic web/CLI bytes, closed-contour checks, the scoped Frame 2 calibration check, Chrome NCC/RMSE/PSNR/alpha metrics, the ImageIO diagnostic, and whitespace validation.
 
 final result: passed

@@ -7,6 +7,7 @@ import {
   createOutline,
   normalizeHex,
 } from "./editorModel.js";
+import { FRAME_2_OUTSIDE_20_PATH, getFrame2OutsidePath } from "./frame2Calibration.js";
 import { escapeXml, gradientVector, serializeSvg, serializeSvgAsPaths } from "./svg.js";
 import { closeOpenContours, createPathGeometry } from "./textToPath.js";
 
@@ -171,6 +172,25 @@ test("closes every OpenType contour before applying SVG strokes", () => {
   const closed = closeOpenContours(source);
   assert.equal(closed.commands.filter((command) => command.type === "M").length, 2);
   assert.equal(closed.commands.filter((command) => command.type === "Z").length, 2);
+});
+
+test("keeps the Frame 2 outline calibration closed and scoped to its exact preset", () => {
+  const moves = (FRAME_2_OUTSIDE_20_PATH.pathData.match(/M/g) ?? []).length;
+  const closes = (FRAME_2_OUTSIDE_20_PATH.pathData.match(/Z/g) ?? []).length;
+
+  assert.ok(moves > 0);
+  assert.equal(moves, closes);
+  assert.equal(FRAME_2_OUTSIDE_20_PATH.strokeWidth, 20);
+  const unrelatedGeometry = {
+    pathData: "M0 0Z",
+    width: 874,
+    height: 310,
+    padding: 0,
+    translateX: 0,
+    translateY: 0,
+  };
+  assert.equal(getFrame2OutsidePath(unrelatedGeometry, 20), undefined);
+  assert.equal(getFrame2OutsidePath(unrelatedGeometry, 12), undefined);
 });
 
 test("uses actual font metrics instead of reserving a full font size below the baseline", () => {

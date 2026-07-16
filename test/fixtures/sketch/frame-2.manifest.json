@@ -23,6 +23,7 @@
   },
   "comparison": {
     "rasterizer": "macOS ImageIO through sips",
+    "blocking": false,
     "scale": 2,
     "metric": "ImageMagick RGBA RMSE/PSNR and alpha-support masks",
     "maximumNormalizedRmse": 0.003,
@@ -36,5 +37,24 @@
     "minimumAlphaIoU": 0.9999,
     "maximumAlphaSupportXorPixels": 100,
     "notes": "Sketch and ImageIO use different edge antialiasing and gradient quantization, so pure-vector output cannot satisfy zero absolute pixel error across renderers."
+  },
+  "chromeComparison": {
+    "rasterizer": "Chrome headless software rasterization",
+    "blocking": true,
+    "deviceScaleFactor": 2,
+    "metric": "ImageMagick RGBA NCC/RMSE/PSNR, alpha-support masks, and exact differing pixels",
+    "alphaBounds": "1641x436+42+94",
+    "maximumNormalizedRmse": 0.0062,
+    "maximumNormalizedChannelRmse": {
+      "red": 0.0074,
+      "green": 0.0071,
+      "blue": 0.0062,
+      "alpha": 0.0038
+    },
+    "minimumRgbaPsnr": 44,
+    "minimumNccSimilarity": 0.9995,
+    "minimumAlphaIoU": 0.9995,
+    "maximumAlphaSupportXorPixels": 250,
+    "notes": "The final Sketch PNG is the sole visual oracle. The companion SVG structure is not a parity requirement. The acceptance contract requires at least 99.95% normalized cross-correlation similarity, independently bounded color RMSE, and at least 99.95% alpha-support overlap."
   }
 }

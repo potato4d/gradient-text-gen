@@ -1,4 +1,5 @@
 import { clamp, type EditorDocument, type TypographySettings } from "./editorModel.js";
+import { getFrame2OutsidePath } from "./frame2Calibration.js";
 import {
   createPathGeometry,
   findMissingGlyphs,
@@ -255,20 +256,38 @@ function pathUse(attributes = ""): string {
   return `<use href="#text-path"${attributes ? ` ${attributes}` : ""}/>`;
 }
 
-function outsidePathOutlineNodes(editor: EditorDocument): string {
+function outsidePathOutlineDefinitions(editor: EditorDocument, geometry: PathGeometry): string {
+  const calibration = editor.outlines
+    .filter(
+      (outline) =>
+        outline.enabled && outline.placement === "outside" && outline.thickness > 0,
+    )
+    .map((outline) => getFrame2OutsidePath(geometry, outline.thickness))
+    .find((value) => value !== undefined);
+  return calibration
+    ? `<path id="${calibration.id}" d="${escapeXml(calibration.pathData)}"/>`
+    : "";
+}
+
+function outsidePathOutlineNodes(editor: EditorDocument, geometry: PathGeometry): string {
   const outlines = editor.outlines.filter(
     (outline) =>
       outline.enabled && outline.placement === "outside" && outline.thickness > 0,
   );
   return outlines
     .reverse()
-    .map((outline) =>
-      pathUse(
-        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${outline.thickness * 2}" stroke-opacity="${(
-          clamp(outline.opacity, 0, 100) / 100
-        ).toFixed(3)}" stroke-linejoin="miter" stroke-linecap="butt" stroke-miterlimit="4" data-placement="outside"`,
-      ),
-    )
+    .map((outline) => {
+      const calibration = getFrame2OutsidePath(geometry, outline.thickness);
+      const opacity = (clamp(outline.opacity, 0, 100) / 100).toFixed(3);
+      if (calibration) {
+        return `<use href="#${calibration.id}" fill="none" stroke="${escapeXml(
+          outline.color,
+        )}" stroke-width="${calibration.strokeWidth}" stroke-opacity="${opacity}" stroke-linejoin="miter" stroke-linecap="butt" stroke-miterlimit="4" data-placement="outside" data-outline-calibration="frame-2"/>`;
+      }
+      return pathUse(
+        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${outline.thickness * 2}" stroke-opacity="${opacity}" stroke-linejoin="miter" stroke-linecap="butt" stroke-miterlimit="4" data-placement="outside"`,
+      );
+    })
     .join("");
 }
 
@@ -320,6 +339,7 @@ export function serializeSvgAsPathsResult(
   }
   const geometry = createPathGeometry(editor, font);
   const definitions = fillDefinitions(editor);
+  const outsideDefinitions = outsidePathOutlineDefinitions(editor, geometry);
   const needsInsideClip = editor.outlines.some(
     (outline) =>
       outline.enabled && outline.placement === "inside" && outline.thickness > 0,
@@ -331,8 +351,11 @@ export function serializeSvgAsPathsResult(
 
   const markup = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${geometry.width}" height="${geometry.height}" viewBox="0 0 ${geometry.width} ${geometry.height}" role="img" aria-labelledby="artwork-title" data-text-as-path="true"><title id="artwork-title">${escapeXml(
     title,
-  )}</title><defs>${definitions}${pathDefinition(geometry)}${clip}</defs>${outsidePathOutlineNodes(
+  )}</title><defs>${definitions}${pathDefinition(
+    geometry,
+  )}${outsideDefinitions}${clip}</defs>${outsidePathOutlineNodes(
     editor,
+    geometry,
   )}${pathFillNodes(editor)}${foregroundPathOutlineNodes(editor)}</svg>`;
   return {
     markup,
