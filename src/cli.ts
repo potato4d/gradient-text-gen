@@ -299,6 +299,14 @@ export function createDocumentFromOptions(options: CliConfig): EditorDocument {
   assertRange(options.fillOpacity, 0, 100, "Fill opacity");
 
   const editor = createInitialDocument();
+  const initialGeometry = {
+    text: editor.text,
+    fontFamily: editor.typography.fontFamily,
+    fontWeight: editor.typography.fontWeight,
+    fontSize: editor.typography.fontSize,
+    letterSpacing: editor.typography.letterSpacing,
+    lineHeight: editor.typography.lineHeight,
+  };
   if (options.text !== undefined) editor.text = options.text;
   if (options.font !== undefined && options.fontFamily !== undefined) {
     throw new Error("Use either --font or --font-family, not both.");
@@ -321,7 +329,18 @@ export function createDocumentFromOptions(options: CliConfig): EditorDocument {
   if (options.size !== undefined) editor.typography.fontSize = options.size;
   if (options.tracking !== undefined) editor.typography.letterSpacing = options.tracking;
   if (options.lineHeight !== undefined) editor.typography.lineHeight = options.lineHeight;
-  if (options.frame !== undefined) editor.frame = options.frame;
+  if (options.frame !== undefined) {
+    editor.frame = options.frame;
+  } else if (
+    editor.text !== initialGeometry.text ||
+    editor.typography.fontFamily !== initialGeometry.fontFamily ||
+    editor.typography.fontWeight !== initialGeometry.fontWeight ||
+    editor.typography.fontSize !== initialGeometry.fontSize ||
+    editor.typography.letterSpacing !== initialGeometry.letterSpacing ||
+    editor.typography.lineHeight !== initialGeometry.lineHeight
+  ) {
+    editor.frame = { mode: "fit" };
+  }
 
   const fill = editor.fills[0];
   if (options.fill !== undefined) {

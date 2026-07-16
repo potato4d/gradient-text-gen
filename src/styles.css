@@ -351,6 +351,12 @@ select:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.type-meta-stack {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
 .select-field {
   display: flex;
   min-width: 0;

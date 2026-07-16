@@ -27,6 +27,7 @@ import {
   createFill,
   createInitialDocument,
   createOutline,
+  createReferenceFrame,
   gradientCss,
   insertStop,
   normalizeHex,
@@ -524,7 +525,11 @@ function TextControls({
   const { typography } = editor;
 
   const updateTypography = (patch: Partial<TypographySettings>) =>
-    onChange({ ...editor, typography: { ...typography, ...patch } });
+    onChange({
+      ...editor,
+      typography: { ...typography, ...patch },
+      frame: { mode: "fit" },
+    });
 
   return (
     <section className="editor-section text-section" aria-labelledby="text-heading">
@@ -544,7 +549,9 @@ function TextControls({
         rows={2}
         maxLength={160}
         placeholder="Type something bold"
-        onChange={(event) => onChange({ ...editor, text: event.target.value })}
+        onChange={(event) =>
+          onChange({ ...editor, text: event.target.value, frame: { mode: "fit" } })
+        }
       />
       <div className="control-grid control-grid-two">
         <FontPicker
@@ -556,19 +563,39 @@ function TextControls({
           onOutlineFontChange={onOutlineFontChange}
           onExportAsPathsChange={onExportAsPathsChange}
         />
-        <label className="select-field">
-          <span>Weight</span>
-          <select
-            value={typography.fontWeight}
-            onChange={(event) => updateTypography({ fontWeight: Number(event.target.value) })}
-          >
-            {[400, 500, 600, 700, 800, 900].map((weight) => (
-              <option key={weight} value={weight}>
-                {weight}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="type-meta-stack">
+          <label className="select-field">
+            <span>Weight</span>
+            <select
+              value={typography.fontWeight}
+              onChange={(event) => updateTypography({ fontWeight: Number(event.target.value) })}
+            >
+              {[400, 500, 600, 700, 800, 900].map((weight) => (
+                <option key={weight} value={weight}>
+                  {weight}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="select-field">
+            <span>Canvas</span>
+            <select
+              value={editor.frame.mode}
+              onChange={(event) =>
+                onChange({
+                  ...editor,
+                  frame:
+                    event.target.value === "fixed"
+                      ? createReferenceFrame()
+                      : { mode: "fit" },
+                })
+              }
+            >
+              <option value="fixed">Frame 2</option>
+              <option value="fit">Fit artwork</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div className="control-grid control-grid-three">
         <RangeField

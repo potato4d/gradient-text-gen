@@ -105,7 +105,26 @@ test("CLI and web serializer settings remain deterministic", () => {
   const first = createDocumentFromOptions(options);
   const second = createDocumentFromOptions(options);
   assert.notEqual(first.fills[0].id, second.fills[0].id);
+  assert.equal(first.frame.mode, "fit");
   assert.equal(serializeSvg(first), serializeSvg(second));
+});
+
+test("custom content auto-fits unless a fixed frame is explicit", () => {
+  const automatic = createDocumentFromOptions({ text: "A much longer custom line" });
+  assert.deepEqual(automatic.frame, { mode: "fit" });
+
+  const fixed = createDocumentFromOptions({
+    text: "A much longer custom line",
+    frame: {
+      mode: "fixed",
+      width: 640,
+      height: 240,
+      originX: 20,
+      baselineY: 160,
+    },
+  });
+  assert.equal(fixed.frame.mode, "fixed");
+  assert.match(serializeSvg(fixed), /viewBox="0 0 640 240"/);
 });
 
 test("supports the full outline limit and rejects overflow", () => {

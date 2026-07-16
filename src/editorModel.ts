@@ -156,6 +156,21 @@ const REFERENCE_STOPS: ReadonlyArray<readonly [string, number]> = [
   ["#F1BC15", 100],
 ];
 
+export const createReferenceFrame = (): SvgFrame => ({
+  mode: "fixed",
+  width: 874,
+  height: 310,
+  originX: 44.995,
+  baselineY: 234.835,
+  glyphOffsets: [
+    { x: 0, y: 0 },
+    { x: 0.125, y: 0.165 },
+    { x: 0.125, y: 0.165 },
+    { x: 0.125, y: 0.165 },
+    { x: 0.125, y: 0.165 },
+  ],
+});
+
 export const createInitialDocument = (): EditorDocument => ({
   version: 1,
   text: "ライゼオル",
@@ -200,20 +215,7 @@ export const createInitialDocument = (): EditorDocument => ({
       placement: "outside",
     },
   ],
-  frame: {
-    mode: "fixed",
-    width: 874,
-    height: 310,
-    originX: 44.995,
-    baselineY: 234.835,
-    glyphOffsets: [
-      { x: 0, y: 0 },
-      { x: 0.125, y: 0.165 },
-      { x: 0.125, y: 0.165 },
-      { x: 0.125, y: 0.165 },
-      { x: 0.125, y: 0.165 },
-    ],
-  },
+  frame: createReferenceFrame(),
 });
 
 export const clamp = (value: number | string, min: number, max: number): number =>
