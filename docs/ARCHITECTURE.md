@@ -91,6 +91,8 @@ dist-cli/                   # Node.js CLI package output
 
 The worker delegates static requests to the platform asset binding. Requests that accept HTML fall back to `index.html`, which keeps direct links and browser refreshes inside the React application.
 
+Production is hosted by AWS Amplify from the `master` branch. Amplify follows the checked-in `amplify.yml`, gates publication on strict TypeScript checks and unit tests, and serves `dist/client`. See [Deployment](DEPLOYMENT.md) for the release and rollback contract.
+
 ## Testing Strategy
 
 - TypeScript compilation is a release gate through `npm run typecheck`.

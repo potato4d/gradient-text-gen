@@ -9,4 +9,4 @@ A strict TypeScript web editor and CLI for building layered gradient text and ex
 - Complete release verification, including the Sketch pixel oracle: `npm run verify`
 - CLI: `npm run cli -- --help`
 
-See [the product specification](docs/PRODUCT_SPEC.md), [architecture](docs/ARCHITECTURE.md), [CLI guide](docs/CLI.md), and [testing guide](docs/TESTING.md).
+See [the product specification](docs/PRODUCT_SPEC.md), [architecture](docs/ARCHITECTURE.md), [CLI guide](docs/CLI.md), [testing guide](docs/TESTING.md), and [deployment guide](docs/DEPLOYMENT.md).
