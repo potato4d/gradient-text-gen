@@ -3,6 +3,20 @@ export const MAX_OUTLINES = 12;
 export type FillType = "linear" | "solid";
 export type OutlinePlacement = "outside" | "center" | "inside";
 export type TextAlignment = "left" | "center" | "right";
+export interface GlyphOffset {
+  x: number;
+  y: number;
+}
+export type SvgFrame =
+  | { mode: "fit" }
+  | {
+      mode: "fixed";
+      width: number;
+      height: number;
+      originX: number;
+      baselineY: number;
+      glyphOffsets?: GlyphOffset[];
+    };
 
 export interface FontOption {
   id: string;
@@ -54,9 +68,15 @@ export interface EditorDocument {
   typography: TypographySettings;
   fills: FillLayer[];
   outlines: OutlineLayer[];
+  frame: SvgFrame;
 }
 
 export const FONT_OPTIONS: FontOption[] = [
+  {
+    id: "dela-suko",
+    label: "DelaSuko Gothic One",
+    family: "'DelaSuko Gothic One', sans-serif",
+  },
   {
     id: "heavy-gothic",
     label: "Heavy Gothic",
@@ -123,16 +143,16 @@ export const createOutline = (index = 0): OutlineLayer => ({
   enabled: true,
   name: `Outline ${index + 1}`,
   color: ["#111216", "#FFFFFF", "#6F78FF", "#F4FF77"][index % 4],
-  thickness: index === 0 ? 6 : 4,
+  thickness: Math.min(80, 12 + index * 8),
   opacity: 100,
   placement: "outside",
 });
 
 const REFERENCE_STOPS: ReadonlyArray<readonly [string, number]> = [
   ["#E9F62A", 0],
-  ["#FFF5A0", 27],
-  ["#EED991", 48],
-  ["#F0C739", 61],
+  ["#FFF5A0", 26.5679633],
+  ["#EED991", 48.0359484],
+  ["#F0C739", 60.5414117],
   ["#F1BC15", 100],
 ];
 
@@ -140,12 +160,12 @@ export const createInitialDocument = (): EditorDocument => ({
   version: 1,
   text: "ライゼオル",
   typography: {
-    fontId: "heavy-gothic",
+    fontId: "dela-suko",
     fontFamily: FONT_OPTIONS[0].family,
-    fontWeight: 900,
-    fontSize: 164,
-    letterSpacing: -6,
-    lineHeight: 0.95,
+    fontWeight: 400,
+    fontSize: 155,
+    letterSpacing: 0,
+    lineHeight: 1,
     align: "left",
   },
   fills: [
@@ -165,8 +185,8 @@ export const createInitialDocument = (): EditorDocument => ({
       id: uid("outline"),
       enabled: true,
       name: "Inner Ink",
-      color: "#050505",
-      thickness: 6,
+      color: "#000000",
+      thickness: 12,
       opacity: 100,
       placement: "outside",
     },
@@ -175,11 +195,25 @@ export const createInitialDocument = (): EditorDocument => ({
       enabled: true,
       name: "Outer Paper",
       color: "#FFFFFF",
-      thickness: 4,
+      thickness: 20,
       opacity: 100,
       placement: "outside",
     },
   ],
+  frame: {
+    mode: "fixed",
+    width: 874,
+    height: 310,
+    originX: 44.995,
+    baselineY: 234.835,
+    glyphOffsets: [
+      { x: 0, y: 0 },
+      { x: 0.125, y: 0.165 },
+      { x: 0.125, y: 0.165 },
+      { x: 0.125, y: 0.165 },
+      { x: 0.125, y: 0.165 },
+    ],
+  },
 });
 
 export const clamp = (value: number | string, min: number, max: number): number =>

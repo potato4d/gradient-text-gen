@@ -1,0 +1,31 @@
+{
+  "text": "ライゼオル",
+  "fontFamily": "'DelaSuko Gothic One', sans-serif",
+  "weight": 400,
+  "size": 155,
+  "tracking": 0,
+  "lineHeight": 1,
+  "angle": 180,
+  "stops": [
+    "#E9F62A@0",
+    "#FFF5A0@26.5679633",
+    "#EED991@48.0359484",
+    "#F0C739@60.5414117",
+    "#F1BC15@100"
+  ],
+  "outlines": ["#000000@12:outside", "#FFFFFF@20:outside"],
+  "frame": {
+    "mode": "fixed",
+    "width": 874,
+    "height": 310,
+    "originX": 44.995,
+    "baselineY": 234.835,
+    "glyphOffsets": [
+      { "x": 0, "y": 0 },
+      { "x": 0.125, "y": 0.165 },
+      { "x": 0.125, "y": 0.165 },
+      { "x": 0.125, "y": 0.165 },
+      { "x": 0.125, "y": 0.165 }
+    ]
+  }
+}

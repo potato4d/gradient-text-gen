@@ -8,6 +8,7 @@ import {
   normalizeHex,
 } from "./editorModel.js";
 import { escapeXml, gradientVector, serializeSvg, serializeSvgAsPaths } from "./svg.js";
+import { closeOpenContours, createPathGeometry } from "./textToPath.js";
 
 function createOutlineFixtureFont() {
   const notdef = new opentype.Glyph({
@@ -73,9 +74,12 @@ test("serializes the reference preset with deterministic gradient and outline ge
   assert.match(svg, /width="\d+" height="\d+" viewBox="0 0 \d+ \d+"/);
   assert.match(svg, /stop-color="#E9F62A"/);
   assert.match(svg, /stop-color="#FFF5A0"/);
-  assert.match(svg, /stroke="#FFFFFF" stroke-width="20"/);
-  assert.match(svg, /stroke="#050505" stroke-width="12"/);
-  assert.match(svg, /font-family="&apos;Arial Black&apos;/);
+  assert.match(svg, /offset="26\.5679633%"/);
+  assert.match(svg, /stroke="#FFFFFF" stroke-width="40"/);
+  assert.match(svg, /stroke="#000000" stroke-width="24"/);
+  assert.match(svg, /font-family="&apos;DelaSuko Gothic One&apos;/);
+  assert.match(svg, /width="874" height="310" viewBox="0 0 874 310"/);
+  assert.match(svg, /stroke-linejoin="miter"/);
   assert.doesNotMatch(svg, /<rect/);
   assert.doesNotMatch(svg, /<!--/);
 });
@@ -153,6 +157,31 @@ test("serializes deterministic portable paths without font dependencies", () => 
   assert.doesNotMatch(firstSvg, /<text|<tspan|font-family=/);
   assert.doesNotMatch(firstSvg, /NaN|Infinity/);
   assert.doesNotMatch(firstSvg, /(?:^|[\s,(])-0(?:\.0+)?(?=[\s,)"LMCQZ]|$)/);
+});
+
+test("closes every OpenType contour before applying SVG strokes", () => {
+  const source = new opentype.Path();
+  source.moveTo(0, 0);
+  source.lineTo(20, 0);
+  source.lineTo(20, 20);
+  source.moveTo(5, 5);
+  source.lineTo(10, 5);
+  source.lineTo(10, 10);
+
+  const closed = closeOpenContours(source);
+  assert.equal(closed.commands.filter((command) => command.type === "M").length, 2);
+  assert.equal(closed.commands.filter((command) => command.type === "Z").length, 2);
+});
+
+test("uses actual font metrics instead of reserving a full font size below the baseline", () => {
+  const editor = createInitialDocument();
+  editor.frame = { mode: "fit" };
+  editor.text = "A";
+  editor.outlines = [];
+  const geometry = createPathGeometry(editor, createOutlineFixtureFont());
+
+  assert.ok(geometry.height < editor.typography.fontSize * 2);
+  assert.equal((geometry.pathData.match(/M/g) ?? []).length, (geometry.pathData.match(/Z/g) ?? []).length);
 });
 
 test("rejects path export when the font is missing a glyph", () => {

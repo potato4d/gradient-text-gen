@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "sourceSvg": {
+    "file": "frame-2.svg",
+    "sha256": "12e0641ebd8c2238cbf47f1c941421606e703114d708520b6bc88af0c0b93309",
+    "width": 874,
+    "height": 310
+  },
+  "oraclePng": {
+    "file": "frame-2@2x.png",
+    "sha256": "b4648f1ec253d0193e2e58058634c07156645398f243f4ed5af67c3da9dd0309",
+    "width": 1748,
+    "height": 620,
+    "colorSpace": "sRGB",
+    "alphaBounds": "1641x437+42+93"
+  },
+  "font": {
+    "family": "DelaSuko Gothic One",
+    "style": "Regular",
+    "version": "1.005",
+    "weight": 400,
+    "sha256": "7ff1472ec61ed5f14cd27e0cb6ecfda4e8c6e01215a0b6ff7ee27b98b897be86"
+  },
+  "comparison": {
+    "rasterizer": "macOS ImageIO through sips",
+    "scale": 2,
+    "metric": "ImageMagick normalized RGBA RMSE",
+    "maximumNormalizedRmse": 0.003,
+    "notes": "Sketch and ImageIO use different edge antialiasing and gradient quantization, so pure-vector output cannot satisfy zero absolute pixel error across renderers."
+  }
+}

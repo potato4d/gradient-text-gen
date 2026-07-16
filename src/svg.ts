@@ -22,6 +22,11 @@ export interface SvgLayout {
   lines: string[];
 }
 
+export interface SerializedSvgResult {
+  markup: string;
+  layout: SvgLayout;
+}
+
 export type LineMeasure = (line: string, typography: TypographySettings) => number;
 
 export function escapeXml(value: unknown): string {
@@ -75,9 +80,22 @@ export function measureDocument(
   const typography = editor.typography;
   const lineHeight = typography.fontSize * typography.lineHeight;
   const widths = lines.map((line) => measureLine(line || " ", typography));
-  const outsideThickness = editor.outlines
-    .filter((outline) => outline.enabled && outline.placement === "outside")
-    .reduce((total, outline) => total + clamp(outline.thickness, 0, 80), 0);
+  if (editor.frame.mode === "fixed") {
+    return {
+      width: editor.frame.width,
+      height: editor.frame.height,
+      padding: editor.frame.originX,
+      baseline: editor.frame.baselineY,
+      lineHeight,
+      lines,
+    };
+  }
+  const outsideThickness = Math.max(
+    0,
+    ...editor.outlines
+      .filter((outline) => outline.enabled && outline.placement === "outside")
+      .map((outline) => clamp(outline.thickness, 0, 80)),
+  );
   const centeredHalf = Math.max(
     0,
     ...editor.outlines
@@ -113,8 +131,9 @@ function textAttributes(editor: EditorDocument): string {
     `font-size="${clamp(typography.fontSize, 12, 420)}"`,
     `font-weight="${clamp(typography.fontWeight, 100, 900)}"`,
     `letter-spacing="${clamp(typography.letterSpacing, -30, 80)}"`,
-    'stroke-linejoin="round"',
-    'stroke-linecap="round"',
+    'stroke-linejoin="miter"',
+    'stroke-linecap="butt"',
+    'stroke-miterlimit="4"',
     'xml:space="preserve"',
   ].join(" ");
 }
@@ -147,17 +166,11 @@ function outsideOutlineNodes(
     (outline) =>
       outline.enabled && outline.placement === "outside" && outline.thickness > 0,
   );
-  const cumulative = outlines.map((_, index) =>
-    outlines
-      .slice(0, index + 1)
-      .reduce((total, outline) => total + outline.thickness, 0),
-  );
   return outlines
-    .map((outline, index) => ({ outline, strokeWidth: cumulative[index] * 2 }))
     .reverse()
     .map(
-      ({ outline, strokeWidth }) =>
-        `<text ${attributes} fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${strokeWidth}" stroke-opacity="${(
+      (outline) =>
+        `<text ${attributes} fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${outline.thickness * 2}" stroke-opacity="${(
           clamp(outline.opacity, 0, 100) / 100
         ).toFixed(3)}" data-placement="outside">${lines}</text>`,
     )
@@ -231,7 +244,11 @@ export function serializeSvg(
 }
 
 function pathDefinition(geometry: PathGeometry): string {
-  return `<path id="text-path" d="${escapeXml(geometry.pathData)}" transform="translate(${geometry.translateX} ${geometry.translateY})"/>`;
+  const transform =
+    geometry.translateX === 0 && geometry.translateY === 0
+      ? ""
+      : ` transform="translate(${geometry.translateX} ${geometry.translateY})"`;
+  return `<path id="text-path" d="${escapeXml(geometry.pathData)}"${transform}/>`;
 }
 
 function pathUse(attributes = ""): string {
@@ -243,19 +260,13 @@ function outsidePathOutlineNodes(editor: EditorDocument): string {
     (outline) =>
       outline.enabled && outline.placement === "outside" && outline.thickness > 0,
   );
-  const cumulative = outlines.map((_, index) =>
-    outlines
-      .slice(0, index + 1)
-      .reduce((total, outline) => total + outline.thickness, 0),
-  );
   return outlines
-    .map((outline, index) => ({ outline, strokeWidth: cumulative[index] * 2 }))
     .reverse()
-    .map(({ outline, strokeWidth }) =>
+    .map((outline) =>
       pathUse(
-        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${strokeWidth}" stroke-opacity="${(
+        `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${outline.thickness * 2}" stroke-opacity="${(
           clamp(outline.opacity, 0, 100) / 100
-        ).toFixed(3)}" stroke-linejoin="round" stroke-linecap="round" data-placement="outside"`,
+        ).toFixed(3)}" stroke-linejoin="miter" stroke-linecap="butt" stroke-miterlimit="4" data-placement="outside"`,
       ),
     )
     .join("");
@@ -271,7 +282,7 @@ function pathFillNodes(editor: EditorDocument): string {
       return pathUse(
         `fill="${paint}" fill-opacity="${(clamp(fill.opacity, 0, 100) / 100).toFixed(
           3,
-        )}" stroke="none"`,
+        )}" fill-rule="evenodd" stroke="none"`,
       );
     })
     .join("");
@@ -288,7 +299,7 @@ function foregroundPathOutlineNodes(editor: EditorDocument): string {
       const node = pathUse(
         `fill="none" stroke="${escapeXml(outline.color)}" stroke-width="${
           outline.placement === "inside" ? outline.thickness * 2 : outline.thickness
-        }" stroke-opacity="${opacity}" stroke-linejoin="round" stroke-linecap="round" data-placement="${
+        }" stroke-opacity="${opacity}" stroke-linejoin="miter" stroke-linecap="butt" stroke-miterlimit="4" data-placement="${
           outline.placement
         }" data-layer="${index}"`,
       );
@@ -299,7 +310,10 @@ function foregroundPathOutlineNodes(editor: EditorDocument): string {
     .join("");
 }
 
-export function serializeSvgAsPaths(editor: EditorDocument, font: OutlineFont): string {
+export function serializeSvgAsPathsResult(
+  editor: EditorDocument,
+  font: OutlineFont,
+): SerializedSvgResult {
   const missingGlyphs = findMissingGlyphs(editor, font);
   if (missingGlyphs.length > 0) {
     throw new Error(`The selected font is missing: ${missingGlyphs.join(" ")}`);
@@ -315,9 +329,24 @@ export function serializeSvgAsPaths(editor: EditorDocument, font: OutlineFont): 
     : "";
   const title = editor.text.trim() || "Gradient text artwork";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${geometry.width}" height="${geometry.height}" viewBox="0 0 ${geometry.width} ${geometry.height}" role="img" aria-labelledby="artwork-title" data-text-as-path="true"><title id="artwork-title">${escapeXml(
+  const markup = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${geometry.width}" height="${geometry.height}" viewBox="0 0 ${geometry.width} ${geometry.height}" role="img" aria-labelledby="artwork-title" data-text-as-path="true"><title id="artwork-title">${escapeXml(
     title,
   )}</title><defs>${definitions}${pathDefinition(geometry)}${clip}</defs>${outsidePathOutlineNodes(
     editor,
   )}${pathFillNodes(editor)}${foregroundPathOutlineNodes(editor)}</svg>`;
+  return {
+    markup,
+    layout: {
+      width: geometry.width,
+      height: geometry.height,
+      padding: geometry.padding,
+      baseline: geometry.translateY,
+      lineHeight: editor.typography.fontSize * editor.typography.lineHeight,
+      lines: editor.text.split("\n"),
+    },
+  };
+}
+
+export function serializeSvgAsPaths(editor: EditorDocument, font: OutlineFont): string {
+  return serializeSvgAsPathsResult(editor, font).markup;
 }

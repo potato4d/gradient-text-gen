@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
   createDocumentFromOptions,
@@ -6,6 +9,7 @@ import {
   parseConfig,
   parseOutlineArgument,
   parseStopArgument,
+  runCli,
 } from "./cli.js";
 import { MAX_OUTLINES } from "./editorModel.js";
 import { serializeSvg } from "./svg.js";
@@ -70,6 +74,7 @@ test("accepts documented JSON config fields", () => {
       stops: ["#000@0", "#fff@100"],
       outlines: [],
       noOutline: undefined,
+      frame: undefined,
     },
   );
 });
@@ -113,4 +118,30 @@ test("supports the full outline limit and rejects overflow", () => {
     () => createDocumentFromOptions({ outlines: [...outlines, "#FFFFFF@1:inside"] }),
     /At most 12 outlines/,
   );
+});
+
+test("accepts a deterministic fixed frame in JSON configuration", () => {
+  const frame = {
+    mode: "fixed" as const,
+    width: 874,
+    height: 310,
+    originX: 44.995,
+    baselineY: 234.835,
+    glyphOffsets: [{ x: 0, y: 0 }, { x: 0.125, y: 0.165 }],
+  };
+  assert.deepEqual(parseConfig({ frame }).frame, frame);
+  assert.deepEqual(parseConfig({ frame: { mode: "fit" } }).frame, { mode: "fit" });
+});
+
+test("CLI file output uses the serializer bytes without adding a trailing newline", async () => {
+  const directory = await mkdtemp(resolve(tmpdir(), "gradient-text-gen-cli-"));
+  const output = resolve(directory, "artwork.svg");
+  try {
+    const editor = createDocumentFromOptions({ text: "Canonical", noOutline: true });
+    await runCli(["--text", "Canonical", "--no-outline", "--output", output]);
+    assert.equal(await readFile(output, "utf8"), serializeSvg(editor));
+    assert.equal((await readFile(output, "utf8")).endsWith("\n"), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

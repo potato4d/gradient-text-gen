@@ -1,5 +1,5 @@
 import * as opentypeModule from "opentype.js";
-import type { Font } from "opentype.js";
+import type { Font, Path, PathCommand } from "opentype.js";
 import { clamp, type EditorDocument } from "./editorModel.js";
 
 type OpenTypeModule = typeof import("opentype.js");
@@ -27,9 +27,12 @@ function compactNumber(value: number): number {
 }
 
 function pathPadding(editor: EditorDocument): number {
-  const outsideThickness = editor.outlines
-    .filter((outline) => outline.enabled && outline.placement === "outside")
-    .reduce((total, outline) => total + clamp(outline.thickness, 0, 80), 0);
+  const outsideThickness = Math.max(
+    0,
+    ...editor.outlines
+      .filter((outline) => outline.enabled && outline.placement === "outside")
+      .map((outline) => clamp(outline.thickness, 0, 80)),
+  );
   const centeredHalf = Math.max(
     0,
     ...editor.outlines
@@ -47,8 +50,72 @@ export function getOutlineFontFamily(font: OutlineFont): string {
   return font.getEnglishName("fontFamily") || font.getEnglishName("fullName") || "Uploaded font";
 }
 
+export function getOutlineFontWeight(font: OutlineFont): number {
+  const tables = font.tables as unknown as { os2?: { usWeightClass?: number } };
+  const weight = finiteOr(tables.os2?.usWeightClass, 400);
+  return clamp(Math.round(weight / 100) * 100, 100, 900);
+}
+
 export function findMissingGlyphs(editor: EditorDocument, font: OutlineFont): string[] {
   return [...new Set(Array.from(editor.text).filter((glyph) => !/^\s$/u.test(glyph) && !font.hasChar(glyph)))];
+}
+
+function appendCommand(path: Path, command: PathCommand): void {
+  switch (command.type) {
+    case "M":
+      path.moveTo(command.x, command.y);
+      break;
+    case "L":
+      path.lineTo(command.x, command.y);
+      break;
+    case "C":
+      path.bezierCurveTo(
+        command.x1,
+        command.y1,
+        command.x2,
+        command.y2,
+        command.x,
+        command.y,
+      );
+      break;
+    case "Q":
+      path.quadraticCurveTo(command.x1, command.y1, command.x, command.y);
+      break;
+    case "Z":
+      path.closePath();
+      break;
+  }
+}
+
+export function closeOpenContours(source: Path): Path {
+  const closed = new opentype.Path();
+  let contourOpen = false;
+
+  source.commands.forEach((command) => {
+    if (command.type === "M") {
+      if (contourOpen) closed.closePath();
+      contourOpen = true;
+      appendCommand(closed, command);
+      return;
+    }
+    if (command.type === "Z") {
+      if (contourOpen) closed.closePath();
+      contourOpen = false;
+      return;
+    }
+    appendCommand(closed, command);
+  });
+
+  if (contourOpen) closed.closePath();
+  return closed;
+}
+
+function kerningValue(font: OutlineFont, left: ReturnType<OutlineFont["charToGlyph"]>, right: ReturnType<OutlineFont["charToGlyph"]>): number {
+  try {
+    return finiteOr(font.getKerningValue(left, right), 0);
+  } catch {
+    return 0;
+  }
 }
 
 export function createPathGeometry(editor: EditorDocument, font: OutlineFont): PathGeometry {
@@ -61,35 +128,60 @@ export function createPathGeometry(editor: EditorDocument, font: OutlineFont): P
   const ascender = finiteOr(font.ascender, unitsPerEm * 0.8) * scale;
   const descender = finiteOr(font.descender, -unitsPerEm * 0.2) * scale;
   const lines = editor.text.split("\n");
-  let maxAdvance = 1;
-
-  lines.forEach((line, lineIndex) => {
+  const fixedOriginX = editor.frame.mode === "fixed" ? editor.frame.originX : 0;
+  const fixedBaselineY = editor.frame.mode === "fixed" ? editor.frame.baselineY : 0;
+  const lineLayouts = lines.map((line) => {
     const glyphs = font.stringToGlyphs(line || " ");
-    const baseline = lineIndex * lineHeight;
     let x = 0;
-
     glyphs.forEach((glyph, glyphIndex) => {
-      combinedPath.extend(glyph.getPath(x, baseline, fontSize, {}, font));
       x += finiteOr(glyph.advanceWidth, unitsPerEm) * scale;
       const nextGlyph = glyphs[glyphIndex + 1];
       if (nextGlyph) {
-        let kerning = 0;
-        try {
-          kerning = finiteOr(font.getKerningValue(glyph, nextGlyph), 0);
-        } catch {
-          kerning = 0;
-        }
-        x += kerning * scale;
+        x += kerningValue(font, glyph, nextGlyph) * scale;
         x += typography.letterSpacing;
       }
     });
-    maxAdvance = Math.max(maxAdvance, x);
+    return { glyphs, advance: x };
+  });
+  const maxAdvance = Math.max(1, ...lineLayouts.map((line) => line.advance));
+
+  lineLayouts.forEach(({ glyphs, advance }, lineIndex) => {
+    const baseline = fixedBaselineY + lineIndex * lineHeight;
+    const lineOrigin =
+      typography.align === "center"
+        ? (maxAdvance - advance) / 2
+        : typography.align === "right"
+          ? maxAdvance - advance
+          : 0;
+    let x = fixedOriginX + lineOrigin;
+
+    glyphs.forEach((glyph, glyphIndex) => {
+      const glyphOffset =
+        editor.frame.mode === "fixed" ? editor.frame.glyphOffsets?.[glyphIndex] : undefined;
+      combinedPath.extend(
+        closeOpenContours(
+          glyph.getPath(
+            x + (glyphOffset?.x ?? 0),
+            baseline + (glyphOffset?.y ?? 0),
+            fontSize,
+            {},
+            font,
+          ),
+        ),
+      );
+      x += finiteOr(glyph.advanceWidth, unitsPerEm) * scale;
+      const nextGlyph = glyphs[glyphIndex + 1];
+      if (nextGlyph) {
+        x += kerningValue(font, glyph, nextGlyph) * scale;
+        x += typography.letterSpacing;
+      }
+    });
   });
 
   let minX = 0;
   let minY = -ascender;
   let maxX = maxAdvance;
-  let maxY = Math.max(fontSize, (lines.length - 1) * lineHeight - descender);
+  let maxY = (lines.length - 1) * lineHeight - descender;
   if (combinedPath.commands.length > 0) {
     const bounds = combinedPath.getBoundingBox();
     minX = Math.min(minX, bounds.x1);
@@ -98,9 +190,21 @@ export function createPathGeometry(editor: EditorDocument, font: OutlineFont): P
     maxY = Math.max(maxY, bounds.y2);
   }
 
+  if (editor.frame.mode === "fixed") {
+    return {
+      pathData: combinedPath.toPathData(6),
+      width: editor.frame.width,
+      height: editor.frame.height,
+      padding: 0,
+      translateX: 0,
+      translateY: 0,
+      missingGlyphs: findMissingGlyphs(editor, font),
+    };
+  }
+
   const padding = pathPadding(editor);
   return {
-    pathData: combinedPath.toPathData(3),
+    pathData: combinedPath.toPathData(6),
     width: Math.ceil(maxX - minX + padding * 2),
     height: Math.ceil(maxY - minY + padding * 2),
     padding,

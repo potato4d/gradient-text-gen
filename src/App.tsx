@@ -49,13 +49,14 @@ import {
 } from "./localFonts.js";
 import {
   getOutlineFontFamily,
+  getOutlineFontWeight,
   parseOutlineFont,
   type OutlineFont,
 } from "./textToPath.js";
 import {
   measureDocument,
   serializeSvg,
-  serializeSvgAsPaths,
+  serializeSvgAsPathsResult,
   type SvgLayout,
 } from "./svg.js";
 
@@ -310,12 +311,14 @@ function FontPicker({
       .then((buffer) => parseOutlineFont(buffer))
       .then((font) => {
         if (cancelled) return;
+        const fontWeight = getOutlineFontWeight(font);
+        onChange({ fontWeight });
         onOutlineFontChange({
           font,
           label: record.fullName || record.style || record.family,
           origin: "device",
           family,
-          weight: typography.fontWeight,
+          weight: fontWeight,
         });
         setOutlineLoadState("ready");
       })
@@ -357,12 +360,16 @@ function FontPicker({
       const buffer = await file.arrayBuffer();
       const font = parseOutlineFont(buffer.slice(0));
       const family = getOutlineFontFamily(font);
-      const previewFace = new FontFace(family, buffer.slice(0));
+      const fontWeight = getOutlineFontWeight(font);
+      const previewFace = new FontFace(family, buffer.slice(0), {
+        weight: String(fontWeight),
+      });
       await previewFace.load();
       document.fonts.add(previewFace);
       onChange({
         fontId: `uploaded:${family.toLocaleLowerCase()}`,
         fontFamily: quoteCssFontFamily(family),
+        fontWeight,
       });
       setCustomFontDraft(family);
       onOutlineFontChange({
@@ -370,7 +377,7 @@ function FontPicker({
         label: file.name,
         origin: "file",
         family,
-        weight: typography.fontWeight,
+        weight: fontWeight,
       });
       setOutlineLoadState("ready");
     } catch {
@@ -1119,18 +1126,21 @@ export function App() {
 
   const markup = useMemo(() => serializeSvg(editor), [editor]);
   const pathExport = useMemo(() => {
-    if (!outlineFont) return { markup: null, error: null };
+    if (!outlineFont) return { markup: null, layout: null, error: null };
     try {
-      return { markup: serializeSvgAsPaths(editor, outlineFont.font), error: null };
+      return { ...serializeSvgAsPathsResult(editor, outlineFont.font), error: null };
     } catch (error) {
       return {
         markup: null,
+        layout: null,
         error: error instanceof Error ? error.message : "Text outlines could not be generated.",
       };
     }
   }, [editor, outlineFont]);
   const exportMarkup = exportAsPaths && pathExport.markup ? pathExport.markup : markup;
   const layout = useMemo(() => measureDocument(editor), [editor]);
+  const previewMarkup = exportAsPaths && pathExport.markup ? pathExport.markup : markup;
+  const previewLayout = exportAsPaths && pathExport.layout ? pathExport.layout : layout;
   const isEmpty = editor.text.trim().length === 0;
   const exportUnavailable = exportAsPaths && !pathExport.markup;
 
@@ -1256,8 +1266,8 @@ export function App() {
         </aside>
 
         <PreviewStage
-          markup={markup}
-          layout={layout}
+          markup={previewMarkup}
+          layout={previewLayout}
           background={background}
           onBackgroundChange={setBackground}
           zoom={zoom}

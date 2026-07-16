@@ -14,6 +14,7 @@ import {
   type EditorDocument,
   type OutlineLayer,
   type OutlinePlacement,
+  type SvgFrame,
 } from "./editorModel.js";
 import { serializeSvg, serializeSvgAsPaths } from "./svg.js";
 import { parseOutlineFont } from "./textToPath.js";
@@ -35,6 +36,7 @@ export interface CliConfig {
   stops?: string[];
   outlines?: string[];
   noOutline?: boolean;
+  frame?: SvgFrame;
 }
 
 export interface CliOptions extends CliConfig {
@@ -217,6 +219,53 @@ function readOptionalStringArray(
   return value;
 }
 
+function readOptionalFrame(record: Record<string, unknown>): SvgFrame | undefined {
+  const value = record.frame;
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || (value.mode !== "fit" && value.mode !== "fixed")) {
+    throw new Error('Config field "frame" must use mode "fit" or "fixed".');
+  }
+  if (value.mode === "fit") return { mode: "fit" };
+
+  const width = readOptionalNumber(value, "width");
+  const height = readOptionalNumber(value, "height");
+  const originX = readOptionalNumber(value, "originX");
+  const baselineY = readOptionalNumber(value, "baselineY");
+  if (width === undefined || height === undefined || originX === undefined || baselineY === undefined) {
+    throw new Error(
+      'Fixed config frame requires "width", "height", "originX", and "baselineY".',
+    );
+  }
+  if (width <= 0 || height <= 0) {
+    throw new Error("Fixed config frame dimensions must be greater than zero.");
+  }
+
+  const offsets = value.glyphOffsets;
+  if (
+    offsets !== undefined &&
+    (!Array.isArray(offsets) ||
+      !offsets.every(
+        (offset) =>
+          isRecord(offset) &&
+          typeof offset.x === "number" &&
+          Number.isFinite(offset.x) &&
+          typeof offset.y === "number" &&
+          Number.isFinite(offset.y),
+      ))
+  ) {
+    throw new Error('Config field "frame.glyphOffsets" must contain finite x/y pairs.');
+  }
+
+  return {
+    mode: "fixed",
+    width,
+    height,
+    originX,
+    baselineY,
+    glyphOffsets: offsets as { x: number; y: number }[] | undefined,
+  };
+}
+
 export function parseConfig(value: unknown): CliConfig {
   if (!isRecord(value)) throw new Error("The config root must be a JSON object.");
   const noOutline = value.noOutline;
@@ -238,6 +287,7 @@ export function parseConfig(value: unknown): CliConfig {
     stops: readOptionalStringArray(value, "stops"),
     outlines: readOptionalStringArray(value, "outlines"),
     noOutline,
+    frame: readOptionalFrame(value),
   };
 }
 
@@ -271,6 +321,7 @@ export function createDocumentFromOptions(options: CliConfig): EditorDocument {
   if (options.size !== undefined) editor.typography.fontSize = options.size;
   if (options.tracking !== undefined) editor.typography.letterSpacing = options.tracking;
   if (options.lineHeight !== undefined) editor.typography.lineHeight = options.lineHeight;
+  if (options.frame !== undefined) editor.frame = options.frame;
 
   const fill = editor.fills[0];
   if (options.fill !== undefined) {
@@ -344,11 +395,11 @@ export async function runCli(args = process.argv.slice(2)): Promise<void> {
   if (cli.output) {
     const output = resolve(cli.output);
     await mkdir(dirname(output), { recursive: true });
-    await writeFile(output, `${svg}\n`, "utf8");
+    await writeFile(output, svg, "utf8");
     process.stderr.write(`Wrote ${output}\n`);
     return;
   }
-  process.stdout.write(`${svg}\n`);
+  process.stdout.write(svg);
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
