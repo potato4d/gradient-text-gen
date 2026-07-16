@@ -45,9 +45,18 @@ GRADIENT_TEXT_GEN_REFERENCE_FONT="$HOME/Library/Fonts/DelaSukoGothicOne-R.otf" \
   npm run test:visual
 ```
 
-The script validates the checked-in fixture and font hashes, requires the web starter preset, equivalent CLI config, and repeated exports to be byte-identical without a trailing newline, rasterizes the outlined SVG through macOS ImageIO at 2x, and invokes ImageMagick RGBA comparison. Dimensions, alpha bounds, and the maximum normalized RMSE come from `test/fixtures/sketch/frame-2.manifest.json`.
+The script validates the checked-in fixture and font hashes, requires the web starter preset, equivalent CLI config, and repeated exports to be byte-identical without a trailing newline, rasterizes the outlined SVG through macOS ImageIO at 2x, and invokes ImageMagick comparison. Every threshold comes from `test/fixtures/sketch/frame-2.manifest.json`; the current gate requires:
 
-The PNG oracle came from Sketch. Sketch and ImageIO do not quantize gradients and antialiased edges identically, so `AE = 0` is not a valid pure-vector cross-renderer requirement. The gate instead uses a tightly bounded RMSE plus exact geometry bounds. A raster image must never be embedded in the SVG to satisfy the gate.
+- exact 1748 x 620 raster dimensions, sRGB color space, and exact `1641x437+42+93` nonzero-alpha bounds;
+- normalized RGBA RMSE at or below `0.003`;
+- red, green, blue, and alpha RMSE at or below `0.003`, `0.0028`, `0.0041`, and `0.0015` respectively;
+- RGBA PSNR at or above `50 dB`;
+- alpha-support IoU at or above `0.9999`; and
+- no more than 100 alpha-support XOR pixels.
+
+The PNG oracle came from Sketch. Sketch and ImageIO do not quantize gradients and antialiased edges identically, so `AE = 0` is not a valid pure-vector cross-renderer requirement. The gate instead combines tightly bounded color error with exact geometry and near-exact alpha support. A raster image must never be embedded in the SVG to satisfy the gate.
+
+The JSON result reports the macOS, `sips`, and ImageMagick versions used for the run. Manifest thresholds are validated at runtime and fail closed when missing, nonnumeric, out of range, or nonintegral where an integer count is required.
 
 Use `npm run verify` for the full local release gate. The visual step fails clearly when the authorized reference font, `sips`, or ImageMagick is unavailable.
 

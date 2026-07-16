@@ -24,8 +24,17 @@
   "comparison": {
     "rasterizer": "macOS ImageIO through sips",
     "scale": 2,
-    "metric": "ImageMagick normalized RGBA RMSE",
+    "metric": "ImageMagick RGBA RMSE/PSNR and alpha-support masks",
     "maximumNormalizedRmse": 0.003,
+    "maximumNormalizedChannelRmse": {
+      "red": 0.003,
+      "green": 0.0028,
+      "blue": 0.0041,
+      "alpha": 0.0015
+    },
+    "minimumRgbaPsnr": 50,
+    "minimumAlphaIoU": 0.9999,
+    "maximumAlphaSupportXorPixels": 100,
     "notes": "Sketch and ImageIO use different edge antialiasing and gradient quantization, so pure-vector output cannot satisfy zero absolute pixel error across renderers."
   }
 }

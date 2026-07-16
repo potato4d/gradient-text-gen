@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -21,10 +21,22 @@ interface SketchManifest {
     sha256: string;
     width: number;
     height: number;
+    colorSpace: string;
     alphaBounds: string;
   };
   font: { family: string; weight: number; sha256: string };
-  comparison: { maximumNormalizedRmse: number };
+  comparison: {
+    maximumNormalizedRmse: number;
+    maximumNormalizedChannelRmse: {
+      red: number;
+      green: number;
+      blue: number;
+      alpha: number;
+    };
+    minimumRgbaPsnr: number;
+    minimumAlphaIoU: number;
+    maximumAlphaSupportXorPixels: number;
+  };
 }
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -33,6 +45,50 @@ const fixtureDirectory = resolve(repositoryRoot, "test/fixtures/sketch");
 const manifest = JSON.parse(
   await readFile(resolve(fixtureDirectory, "frame-2.manifest.json"), "utf8"),
 ) as SketchManifest;
+
+function requireFiniteThreshold(
+  label: string,
+  value: number,
+  minimum: number,
+  maximum = Number.POSITIVE_INFINITY,
+  integer = false,
+): void {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < minimum ||
+    value > maximum ||
+    (integer && !Number.isInteger(value))
+  ) {
+    throw new Error(
+      `${label} must be ${integer ? "an integer" : "a finite number"} between ${minimum} and ${maximum}`,
+    );
+  }
+}
+
+requireFiniteThreshold(
+  "comparison.maximumNormalizedRmse",
+  manifest.comparison.maximumNormalizedRmse,
+  0,
+  1,
+);
+for (const channel of ["red", "green", "blue", "alpha"] as const) {
+  requireFiniteThreshold(
+    `comparison.maximumNormalizedChannelRmse.${channel}`,
+    manifest.comparison.maximumNormalizedChannelRmse[channel],
+    0,
+    1,
+  );
+}
+requireFiniteThreshold("comparison.minimumRgbaPsnr", manifest.comparison.minimumRgbaPsnr, 0);
+requireFiniteThreshold("comparison.minimumAlphaIoU", manifest.comparison.minimumAlphaIoU, 0, 1);
+requireFiniteThreshold(
+  "comparison.maximumAlphaSupportXorPixels",
+  manifest.comparison.maximumAlphaSupportXorPixels,
+  0,
+  manifest.oraclePng.width * manifest.oraclePng.height,
+  true,
+);
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -58,6 +114,35 @@ function run(command: string, args: string[], acceptedStatuses = [0]): string {
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+const numberToken = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
+
+function parseNormalizedRmse(comparison: string, label: string): number {
+  const value = Number(new RegExp(`\\((${numberToken})\\)\\s*$`).exec(comparison)?.[1]);
+  if (!Number.isFinite(value)) {
+    throw new Error(`ImageMagick returned an unreadable ${label} RMSE metric: ${comparison}`);
+  }
+  return value;
+}
+
+function readNormalizedRmse(
+  channel: "R" | "G" | "B" | "A",
+  expected: string,
+  actual: string,
+): number {
+  const comparison = run(
+    "magick",
+    ["compare", "-channel", channel, "-metric", "RMSE", expected, actual, "null:"],
+    [0, 1],
+  );
+  return parseNormalizedRmse(comparison, channel);
+}
+
+function maskPixelCount(args: string[]): number {
+  const value = Number(run("magick", [...args, "-format", "%[fx:mean*w*h]", "info:"]));
+  if (!Number.isFinite(value)) throw new Error("ImageMagick returned an unreadable mask count");
+  return Math.round(value);
 }
 
 const sourceSvgPath = resolve(fixtureDirectory, manifest.sourceSvg.file);
@@ -112,6 +197,8 @@ await mkdir(outputDirectory, { recursive: true });
 const actualSvgPath = resolve(outputDirectory, "frame-2.actual.svg");
 const actualPngPath = resolve(outputDirectory, "frame-2.actual@2x.png");
 const diffPngPath = resolve(outputDirectory, "frame-2.diff.png");
+const referenceAlphaMaskPath = resolve(outputDirectory, ".frame-2.reference-alpha-mask.png");
+const actualAlphaMaskPath = resolve(outputDirectory, ".frame-2.actual-alpha-mask.png");
 await writeFile(actualSvgPath, svg, "utf8");
 
 run("sips", [
@@ -130,6 +217,19 @@ const dimensions = run("magick", ["identify", "-format", "%wx%h", actualPngPath]
 const expectedDimensions = `${manifest.oraclePng.width}x${manifest.oraclePng.height}`;
 if (dimensions !== expectedDimensions) {
   throw new Error(`Raster dimensions differ: expected ${expectedDimensions}, received ${dimensions}`);
+}
+
+const oracleColorSpace = run("magick", ["identify", "-format", "%[colorspace]", oraclePngPath]);
+const actualColorSpace = run("magick", ["identify", "-format", "%[colorspace]", actualPngPath]);
+if (oracleColorSpace !== manifest.oraclePng.colorSpace) {
+  throw new Error(
+    `Oracle color space differs: expected ${manifest.oraclePng.colorSpace}, received ${oracleColorSpace}`,
+  );
+}
+if (actualColorSpace !== manifest.oraclePng.colorSpace) {
+  throw new Error(
+    `Raster color space differs: expected ${manifest.oraclePng.colorSpace}, received ${actualColorSpace}`,
+  );
 }
 
 const alphaBounds = run("magick", [
@@ -162,13 +262,74 @@ const comparison = run(
   ],
   [0, 1],
 );
-const normalizedRmse = Number(/\((\d+(?:\.\d+)?)\)/.exec(comparison)?.[1]);
-if (!Number.isFinite(normalizedRmse)) {
-  throw new Error(`ImageMagick returned an unreadable RMSE metric: ${comparison}`);
-}
+const normalizedRmse = parseNormalizedRmse(comparison, "RGBA");
 if (normalizedRmse > manifest.comparison.maximumNormalizedRmse) {
   throw new Error(
     `Sketch oracle RMSE ${normalizedRmse} exceeds ${manifest.comparison.maximumNormalizedRmse}. Diff: ${diffPngPath}`,
+  );
+}
+
+const channelRmse = {
+  red: readNormalizedRmse("R", oraclePngPath, actualPngPath),
+  green: readNormalizedRmse("G", oraclePngPath, actualPngPath),
+  blue: readNormalizedRmse("B", oraclePngPath, actualPngPath),
+  alpha: readNormalizedRmse("A", oraclePngPath, actualPngPath),
+};
+for (const channel of Object.keys(channelRmse) as Array<keyof typeof channelRmse>) {
+  const maximum = manifest.comparison.maximumNormalizedChannelRmse[channel];
+  if (channelRmse[channel] > maximum) {
+    throw new Error(`${channel} RMSE ${channelRmse[channel]} exceeds ${maximum}`);
+  }
+}
+
+const psnrComparison = run(
+  "magick",
+  ["compare", "-channel", "RGBA", "-metric", "PSNR", oraclePngPath, actualPngPath, "null:"],
+  [0, 1],
+);
+const psnrToken = new RegExp(
+  `(?:^|\\n)\\s*(${numberToken}|inf(?:inity)?)\\s*(?:\\((?:${numberToken}|inf(?:inity)?)\\))?\\s*$`,
+  "i",
+).exec(psnrComparison)?.[1];
+const rgbaPsnr = psnrToken && /^inf/i.test(psnrToken) ? Number.POSITIVE_INFINITY : Number(psnrToken);
+if (Number.isNaN(rgbaPsnr)) {
+  throw new Error(`ImageMagick returned an unreadable PSNR metric: ${psnrComparison}`);
+}
+if (rgbaPsnr < manifest.comparison.minimumRgbaPsnr) {
+  throw new Error(`RGBA PSNR ${rgbaPsnr} is below ${manifest.comparison.minimumRgbaPsnr}`);
+}
+
+let alphaIntersectionPixels: number;
+let alphaUnionPixels: number;
+try {
+  run("magick", [oraclePngPath, "-alpha", "extract", "-threshold", "0", referenceAlphaMaskPath]);
+  run("magick", [actualPngPath, "-alpha", "extract", "-threshold", "0", actualAlphaMaskPath]);
+  alphaIntersectionPixels = maskPixelCount([
+    referenceAlphaMaskPath,
+    actualAlphaMaskPath,
+    "-evaluate-sequence",
+    "min",
+  ]);
+  alphaUnionPixels = maskPixelCount([
+    referenceAlphaMaskPath,
+    actualAlphaMaskPath,
+    "-evaluate-sequence",
+    "max",
+  ]);
+} finally {
+  await Promise.all([
+    rm(referenceAlphaMaskPath, { force: true }),
+    rm(actualAlphaMaskPath, { force: true }),
+  ]);
+}
+const alphaIoU = alphaIntersectionPixels / alphaUnionPixels;
+const alphaSupportXorPixels = alphaUnionPixels - alphaIntersectionPixels;
+if (alphaIoU < manifest.comparison.minimumAlphaIoU) {
+  throw new Error(`Alpha IoU ${alphaIoU} is below ${manifest.comparison.minimumAlphaIoU}`);
+}
+if (alphaSupportXorPixels > manifest.comparison.maximumAlphaSupportXorPixels) {
+  throw new Error(
+    `Alpha support XOR ${alphaSupportXorPixels} exceeds ${manifest.comparison.maximumAlphaSupportXorPixels}`,
   );
 }
 
@@ -177,9 +338,19 @@ process.stdout.write(
     {
       status: "passed",
       dimensions,
+      colorSpace: actualColorSpace,
       alphaBounds,
       normalizedRmse,
       maximumNormalizedRmse: manifest.comparison.maximumNormalizedRmse,
+      channelRmse,
+      rgbaPsnr: Number.isFinite(rgbaPsnr) ? rgbaPsnr : "Infinity",
+      alphaIoU,
+      alphaSupportXorPixels,
+      environment: {
+        macOS: run("sw_vers", ["-productVersion"]),
+        sips: run("sips", ["--version"]),
+        imageMagick: run("magick", ["-version"]).split("\n")[0],
+      },
       canonicalBytes: Buffer.byteLength(svg),
       webCliByteIdentical: true,
       svg: actualSvgPath,

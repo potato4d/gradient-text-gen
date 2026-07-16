@@ -95,7 +95,7 @@ The worker delegates static requests to the platform asset binding. Requests tha
 - Unit tests for CLI parsing, color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
 - A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
 - CLI smoke checks generate the same file twice and compare it byte for byte.
-- A checked-in Sketch oracle gate validates fixture/font hashes, raster dimensions, alpha bounds, and normalized RGBA RMSE through macOS ImageIO and ImageMagick.
+- A checked-in Sketch oracle gate validates fixture/font hashes, raster dimensions, color space, alpha bounds, aggregate and per-channel RMSE, RGBA PSNR, and alpha-support IoU/XOR through macOS ImageIO and ImageMagick; each result records the renderer environment.
 - Production build verification.
 - Browser checks for the complete edit-to-export journey.
 - Visual captures at desktop and 390 x 844 mobile viewports.

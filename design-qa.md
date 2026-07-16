@@ -30,8 +30,9 @@
 - The generated SVG raster is 1748 × 620, matching the Sketch PNG.
 - Both images have the exact alpha bounds `1641x437+42+93`.
 - ImageMagick normalized RGBA RMSE is `0.00281185`, below the pinned `0.003` maximum.
+- Per-channel normalized RMSE is `0.00282217` red, `0.00259` green, `0.00391646` blue, and `0.00127068` alpha; every value passes its independent manifest ceiling.
 - Alpha IoU is `0.9999223429`; only 40 support pixels differ.
-- Premultiplied PSNR is approximately `51.02 dB`.
+- RGBA PSNR is `51.0201 dB`, above the pinned `50 dB` minimum.
 - The amplified difference image confines residuals to antialiased edges and gradient quantization. No layout, glyph, outline, or paint-order mismatch is visible.
 
 Literal `AE = 0` is not portable between Sketch and macOS ImageIO because the rasterizers quantize vector edges and gradients differently. The implementation keeps the output as vector paths and does not embed the oracle PNG.
@@ -62,6 +63,8 @@ Literal `AE = 0` is not portable between Sketch and macOS ImageIO because the ra
 
 - Browser screenshots verify the live text preview and responsive editor. The authorized DelaSuko binary cannot be selected through the in-app browser's file chooser, so the exact outlined path preview is covered by serializer tests and the 2x pixel oracle instead.
 - An exact Sketch-rasterized PNG can only be reproduced by Sketch itself or by embedding a raster image. Neither is used for the delivered standalone vector SVG.
+- Chrome 150 rasterization of the same canonical SVG produces normalized RGBA RMSE `0.00723384` and alpha bounds `1641x436+42+94`, confirming that browser and ImageIO antialiasing differ. ImageIO-specific gradient-stop calibration was rejected because it marginally improved the ImageIO score while worsening the Chrome score; the exported SVG retains the canonical five Sketch stops.
+- The recorded oracle metrics above were reproduced on macOS 26.3.2 with `sips-316` and ImageMagick 7.1.2-27; the verification JSON reports these values on every run.
 
 ## Verification
 
@@ -69,6 +72,6 @@ Literal `AE = 0` is not portable between Sketch and macOS ImageIO because the ra
 npm run verify
 ```
 
-The gate includes strict TypeScript checks, 28 automated tests, production builds, fixture and font hashes, deterministic serializer checks, exact geometry checks, automatic fit-frame regression coverage, and the pixel oracle comparison.
+The gate includes strict TypeScript checks, 28 automated tests, production builds, fixture and font hashes, deterministic serializer checks, exact geometry checks, automatic fit-frame regression coverage, aggregate and per-channel pixel error, PSNR, and alpha-support comparison.
 
 final result: passed

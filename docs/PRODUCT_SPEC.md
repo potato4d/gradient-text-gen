@@ -106,7 +106,7 @@ The Frame 2 fixture is the exact visual contract for one named outlined configur
 - The selected font bytes must match the declared DelaSuko Gothic One Regular SHA-256 before comparison.
 - The shared serializer must emit an 874 × 310 outlined SVG with closed path contours, the fixed reference origin, exact gradient stops, miter joins, black 12 px outside coverage, and white 20 px outside coverage.
 - macOS ImageIO rasterizes the generated SVG to a transparent 1748 × 620 PNG.
-- ImageMagick compares RGBA pixels with normalized RMSE at or below the manifest threshold and requires the exact declared alpha bounds.
+- ImageMagick requires the exact declared dimensions, sRGB color space, and alpha bounds, then enforces manifest thresholds for aggregate and per-channel normalized RMSE, RGBA PSNR, alpha-support intersection-over-union, and alpha-support XOR pixels.
 - Exact zero-error pixels across Sketch and another SVG rasterizer are a non-goal because edge antialiasing and gradient quantization differ. Embedding the PNG to force zero error is prohibited; the delivered artifact remains vector SVG.
 
 ## Acceptance Criteria
@@ -122,6 +122,6 @@ The Frame 2 fixture is the exact visual contract for one named outlined configur
 - Equivalent CLI and web settings produce byte-identical SVG markup.
 - CLI file/stdout, browser preview, clipboard, and download use the same canonical UTF-8 SVG bytes without adding an end-of-file newline.
 - In outlined mode, the preview renders the same path-based markup and dimensions used for copy and download.
-- The canonical Frame 2 visual verification passes the manifest dimensions, alpha bounds, and ImageMagick RMSE threshold.
+- The canonical Frame 2 visual verification passes every manifest dimension, alpha-bound, color-error, signal-quality, and alpha-support threshold.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.
