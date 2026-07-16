@@ -41,7 +41,8 @@ The references define the interaction density and output capabilities. The appli
 - Font weight and text size controls.
 - Letter spacing and line-height controls.
 - The selected font settings must be included in the exported SVG.
-- Optional outlined export converts every glyph to SVG paths from an authorized device font or a user-selected OTF, TTF, or WOFF file.
+- Authorized device-font data or a user-selected OTF, TTF, or WOFF file automatically converts every glyph to SVG paths without an opt-in export switch.
+- Preview, copy, and download automatically prefer the path-based SVG whenever conversion is available; live text is only the fallback while no readable font data is available.
 - Outlined export must keep font bytes local, exclude font-family dependencies, and stop with a clear error when the selected font lacks a required glyph.
 
 ### Fills and Gradients
@@ -125,7 +126,8 @@ The final Frame 2 PNG is the sole visual contract for one named outlined configu
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
 - Equivalent CLI and web settings produce byte-identical SVG markup.
 - CLI file/stdout, browser preview, clipboard, and download use the same canonical UTF-8 SVG bytes without adding an end-of-file newline.
-- In outlined mode, the preview renders the same path-based markup and dimensions used for copy and download.
+- When automatic outlining is available, the preview renders the same path-based markup and dimensions used for copy and download.
+- Once font data is available, preview, copy, and download contain paths automatically and never require a separate outline-export toggle.
 - The canonical Frame 2 Chrome verification passes the manifest's 99.95% similarity and alpha-overlap minimums plus every dimension, alpha-bound, color-error, and signal-quality threshold.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.

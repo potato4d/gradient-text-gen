@@ -33,6 +33,8 @@ Installed font discovery is user-initiated because browsers require explicit per
 
 Outlined export keeps parsed font data outside the serializable editor document. The browser may read bytes from an authorized `FontData.blob()` or a user-selected OTF, TTF, or WOFF file; the CLI requires an explicit file path. `textToPath.ts` lays out glyph paths with font metrics, kerning, tracking, alignment, and multiline baselines. It closes CFF contours before stroking, treats the parsed font file's weight as authoritative, and separates fit bounds from an optional fixed reference frame. The SVG stores the combined geometry once in `<defs>` and reuses it for every fill and outline layer.
 
+The web editor has no outline-export mode switch. As soon as readable font bytes are available, path serialization automatically replaces live-text markup for preview, clipboard, and download. Live text remains only as the editing fallback before a font source is authorized or selected; a path-generation error blocks silent fallback for that loaded source.
+
 ## Rendering Strategy
 
 - Measure the text in the browser to derive a padded SVG view box.

@@ -542,6 +542,22 @@ select:disabled {
   text-overflow: ellipsis;
 }
 
+.path-export-status {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.path-export-control.is-ready .path-export-status {
+  border-color: rgba(115, 117, 255, 0.6);
+  color: #c9caff;
+  background: rgba(115, 117, 255, 0.16);
+}
+
 .is-spinning {
   animation: spin 800ms linear infinite;
 }

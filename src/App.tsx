@@ -60,6 +60,7 @@ import {
   serializeSvgAsPathsResult,
   type SvgLayout,
 } from "./svg.js";
+import { resolveAutomaticSvgOutput } from "./exportPolicy.js";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -221,20 +222,20 @@ interface TextControlsProps {
   editor: EditorDocument;
   onChange: (editor: EditorDocument) => void;
   outlineFont: OutlineFontSource | null;
-  exportAsPaths: boolean;
   pathExportError: string | null;
+  outlineLoadState: OutlineLoadState;
   onOutlineFontChange: (source: OutlineFontSource | null) => void;
-  onExportAsPathsChange: (enabled: boolean) => void;
+  onOutlineLoadStateChange: (state: OutlineLoadState) => void;
 }
 
 interface FontPickerProps {
   typography: TypographySettings;
   onChange: (patch: Partial<TypographySettings>) => void;
   outlineFont: OutlineFontSource | null;
-  exportAsPaths: boolean;
   pathExportError: string | null;
+  outlineLoadState: OutlineLoadState;
   onOutlineFontChange: (source: OutlineFontSource | null) => void;
-  onExportAsPathsChange: (enabled: boolean) => void;
+  onOutlineLoadStateChange: (state: OutlineLoadState) => void;
 }
 
 interface OutlineFontSource {
@@ -246,22 +247,20 @@ interface OutlineFontSource {
 }
 
 type FontLoadState = "idle" | "loading" | "ready" | "unsupported" | "denied" | "failed";
+type OutlineLoadState = "idle" | "loading" | "ready" | "unavailable" | "failed";
 
 function FontPicker({
   typography,
   onChange,
   outlineFont,
-  exportAsPaths,
   pathExportError,
+  outlineLoadState,
   onOutlineFontChange,
-  onExportAsPathsChange,
+  onOutlineLoadStateChange,
 }: FontPickerProps) {
   const [deviceFonts, setDeviceFonts] = useState<typeof FONT_OPTIONS>([]);
   const [deviceFontRecords, setDeviceFontRecords] = useState<LocalFontRecord[]>([]);
   const [loadState, setLoadState] = useState<FontLoadState>("idle");
-  const [outlineLoadState, setOutlineLoadState] = useState<
-    "idle" | "loading" | "ready" | "unavailable" | "failed"
-  >("idle");
   const [customFontDraft, setCustomFontDraft] = useState("");
   const availableFonts = [...FONT_OPTIONS, ...deviceFonts];
   const currentFont = availableFonts.find((font) => font.id === typography.fontId);
@@ -299,13 +298,13 @@ function FontPicker({
       typography.fontWeight,
     );
     if (!record?.blob) {
-      setOutlineLoadState("unavailable");
+      onOutlineLoadStateChange("unavailable");
       onOutlineFontChange(null);
       return;
     }
 
     let cancelled = false;
-    setOutlineLoadState("loading");
+    onOutlineLoadStateChange("loading");
     record
       .blob()
       .then((blob) => blob.arrayBuffer())
@@ -321,12 +320,12 @@ function FontPicker({
           family,
           weight: fontWeight,
         });
-        setOutlineLoadState("ready");
+        onOutlineLoadStateChange("ready");
       })
       .catch(() => {
         if (cancelled) return;
         onOutlineFontChange(null);
-        setOutlineLoadState("failed");
+        onOutlineLoadStateChange("failed");
       });
     return () => {
       cancelled = true;
@@ -337,6 +336,7 @@ function FontPicker({
     typography.fontFamily,
     typography.fontId,
     typography.fontWeight,
+    onOutlineLoadStateChange,
   ]);
 
   const applyCustomFont = () => {
@@ -351,12 +351,12 @@ function FontPicker({
         : { fontId: `custom:${family.toLocaleLowerCase()}`, fontFamily: quoteCssFontFamily(family) },
     );
     onOutlineFontChange(null);
-    setOutlineLoadState("idle");
+    onOutlineLoadStateChange("idle");
   };
 
   const loadFontFile = async (file: File | undefined) => {
     if (!file) return;
-    setOutlineLoadState("loading");
+    onOutlineLoadStateChange("loading");
     try {
       const buffer = await file.arrayBuffer();
       const font = parseOutlineFont(buffer.slice(0));
@@ -380,10 +380,10 @@ function FontPicker({
         family,
         weight: fontWeight,
       });
-      setOutlineLoadState("ready");
+      onOutlineLoadStateChange("ready");
     } catch {
       onOutlineFontChange(null);
-      setOutlineLoadState("failed");
+      onOutlineLoadStateChange("failed");
     }
   };
 
@@ -426,10 +426,8 @@ function FontPicker({
           if (!font) return;
           onChange({ fontId: font.id, fontFamily: font.family });
           setCustomFontDraft(font.id.startsWith("device:") ? font.label : "");
-          if (!font.id.startsWith("device:")) {
-            onOutlineFontChange(null);
-            setOutlineLoadState("idle");
-          }
+          onOutlineFontChange(null);
+          onOutlineLoadStateChange(font.id.startsWith("device:") ? "loading" : "idle");
         }}
       >
         {!currentFont ? (
@@ -487,27 +485,33 @@ function FontPicker({
         </label>
         <span>OTF, TTF, or WOFF</span>
       </div>
-      <div className={`path-export-control ${outlineFont ? "is-ready" : ""}`}>
+      <div className={`path-export-control ${outlineFont && !pathExportError ? "is-ready" : ""}`}>
         <div>
-          <strong>Outline text on export</strong>
+          <strong>Automatic text outlines</strong>
           <small>
             {pathExportError
               ? pathExportError
               : outlineLoadState === "loading"
                 ? "Preparing font outlines…"
                 : outlineFont
-                  ? `${outlineFont.label} is ready for portable paths.`
+                  ? `${outlineFont.label} is converted to portable paths automatically.`
                   : outlineLoadState === "failed"
                     ? "That font could not be read. Try another OTF, TTF, or WOFF file."
-                    : "Choose a device font or load its font file."}
+                    : "Load a device font or font file to replace live text with paths."}
           </small>
         </div>
-        <Toggle
-          checked={exportAsPaths}
-          onChange={onExportAsPathsChange}
-          label="Outline text on SVG export"
-          disabled={!outlineFont}
-        />
+        <span
+          className="path-export-status"
+          aria-label={
+            outlineFont && !pathExportError
+              ? "Automatic outlines ready"
+              : outlineFont
+                ? "Outline conversion unavailable"
+                : "Live text fallback"
+          }
+        >
+          {outlineFont && !pathExportError ? <Check size={14} /> : <Type size={14} />}
+        </span>
       </div>
     </div>
   );
@@ -517,10 +521,10 @@ function TextControls({
   editor,
   onChange,
   outlineFont,
-  exportAsPaths,
   pathExportError,
+  outlineLoadState,
   onOutlineFontChange,
-  onExportAsPathsChange,
+  onOutlineLoadStateChange,
 }: TextControlsProps) {
   const { typography } = editor;
 
@@ -558,10 +562,10 @@ function TextControls({
           typography={typography}
           onChange={updateTypography}
           outlineFont={outlineFont}
-          exportAsPaths={exportAsPaths}
           pathExportError={pathExportError}
+          outlineLoadState={outlineLoadState}
           onOutlineFontChange={onOutlineFontChange}
-          onExportAsPathsChange={onExportAsPathsChange}
+          onOutlineLoadStateChange={onOutlineLoadStateChange}
         />
         <div className="type-meta-stack">
           <label className="select-field">
@@ -1061,6 +1065,7 @@ interface PreviewStageProps {
   zoom: number;
   onZoomChange: (zoom: number) => void;
   isEmpty: boolean;
+  unavailableMessage: string | null;
 }
 
 function PreviewStage({
@@ -1071,6 +1076,7 @@ function PreviewStage({
   zoom,
   onZoomChange,
   isEmpty,
+  unavailableMessage,
 }: PreviewStageProps) {
   return (
     <section className="preview-pane" aria-labelledby="preview-heading">
@@ -1105,10 +1111,13 @@ function PreviewStage({
       </div>
       <div className={`preview-canvas preview-${background}`}>
         {isEmpty ? <p className="preview-empty">Start typing to make something loud.</p> : null}
+        {!isEmpty && unavailableMessage ? (
+          <p className="preview-empty">{unavailableMessage}</p>
+        ) : null}
         <div
           className="preview-art"
           style={{ width: `${zoom}%` }}
-          aria-hidden={isEmpty}
+          aria-hidden={isEmpty || Boolean(unavailableMessage)}
           dangerouslySetInnerHTML={{ __html: markup }}
         />
       </div>
@@ -1149,7 +1158,7 @@ export function App() {
   const [zoom, setZoom] = useState(100);
   const [notice, setNotice] = useState("");
   const [outlineFont, setOutlineFont] = useState<OutlineFontSource | null>(null);
-  const [exportAsPaths, setExportAsPaths] = useState(false);
+  const [outlineLoadState, setOutlineLoadState] = useState<OutlineLoadState>("idle");
 
   const markup = useMemo(() => serializeSvg(editor), [editor]);
   const pathExport = useMemo(() => {
@@ -1164,16 +1173,24 @@ export function App() {
       };
     }
   }, [editor, outlineFont]);
-  const exportMarkup = exportAsPaths && pathExport.markup ? pathExport.markup : markup;
+  const automaticOutput = useMemo(
+    () => resolveAutomaticSvgOutput(markup, pathExport.markup, outlineLoadState !== "idle"),
+    [markup, outlineLoadState, pathExport.markup],
+  );
   const layout = useMemo(() => measureDocument(editor), [editor]);
-  const previewMarkup = exportAsPaths && pathExport.markup ? pathExport.markup : markup;
-  const previewLayout = exportAsPaths && pathExport.layout ? pathExport.layout : layout;
+  const previewMarkup = automaticOutput.previewMarkup;
+  const previewLayout = pathExport.layout ?? layout;
   const isEmpty = editor.text.trim().length === 0;
-  const exportUnavailable = exportAsPaths && !pathExport.markup;
+  const exportUnavailable = automaticOutput.exportMarkup === null;
+  const unavailableMessage = exportUnavailable
+    ? pathExport.error ||
+      (outlineLoadState === "loading"
+        ? "Preparing automatic text outlines…"
+        : "This font could not outline every character. Choose another font.")
+    : null;
 
   const handleOutlineFontChange = useCallback((source: OutlineFontSource | null) => {
     setOutlineFont(source);
-    if (!source) setExportAsPaths(false);
   }, []);
 
   useEffect(() => {
@@ -1190,7 +1207,7 @@ export function App() {
     setBackground("transparent");
     setZoom(100);
     setOutlineFont(null);
-    setExportAsPaths(false);
+    setOutlineLoadState("idle");
     setNotice("Starter settings restored");
   };
 
@@ -1200,8 +1217,8 @@ export function App() {
       return;
     }
     try {
-      await navigator.clipboard.writeText(exportMarkup);
-      setNotice(exportAsPaths ? "Outlined SVG source copied" : "SVG source copied");
+      await navigator.clipboard.writeText(automaticOutput.exportMarkup ?? "");
+      setNotice(automaticOutput.isOutlined ? "Outlined SVG source copied" : "SVG source copied");
     } catch {
       setNotice("Clipboard access was blocked");
     }
@@ -1212,7 +1229,9 @@ export function App() {
       if (exportUnavailable) setNotice(pathExport.error || "Text outlines are not ready");
       return;
     }
-    const blob = new Blob([exportMarkup], { type: "image/svg+xml;charset=utf-8" });
+    const blob = new Blob([automaticOutput.exportMarkup ?? ""], {
+      type: "image/svg+xml;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     const fileBase = editor.text
@@ -1226,7 +1245,7 @@ export function App() {
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice(exportAsPaths ? "Outlined SVG downloaded" : "SVG downloaded");
+    setNotice(automaticOutput.isOutlined ? "Outlined SVG downloaded" : "SVG downloaded");
   };
 
   return (
@@ -1246,7 +1265,7 @@ export function App() {
             Reset
           </ActionButton>
           <ActionButton icon={Copy} onClick={copySvg} disabled={isEmpty || exportUnavailable}>
-            {exportAsPaths ? "Copy outlined SVG" : "Copy SVG"}
+            Copy SVG
           </ActionButton>
           <ActionButton
             icon={Download}
@@ -1254,7 +1273,7 @@ export function App() {
             onClick={downloadSvg}
             disabled={isEmpty || exportUnavailable}
           >
-            {exportAsPaths ? "Download outlined SVG" : "Download SVG"}
+            Download SVG
           </ActionButton>
         </div>
       </header>
@@ -1270,10 +1289,10 @@ export function App() {
             editor={editor}
             onChange={setEditor}
             outlineFont={outlineFont}
-            exportAsPaths={exportAsPaths}
             pathExportError={pathExport.error}
+            outlineLoadState={outlineLoadState}
             onOutlineFontChange={handleOutlineFontChange}
-            onExportAsPathsChange={setExportAsPaths}
+            onOutlineLoadStateChange={setOutlineLoadState}
           />
           <FillPanel
             fills={editor.fills}
@@ -1300,6 +1319,7 @@ export function App() {
           zoom={zoom}
           onZoomChange={setZoom}
           isEmpty={isEmpty}
+          unavailableMessage={unavailableMessage}
         />
       </main>
 
@@ -1311,7 +1331,7 @@ export function App() {
           type="button"
           onClick={copySvg}
           disabled={isEmpty || exportUnavailable}
-          aria-label={exportAsPaths ? "Copy outlined SVG source" : "Copy SVG source"}
+          aria-label="Copy SVG source"
         >
           <Copy size={19} />
         </button>
@@ -1321,7 +1341,7 @@ export function App() {
           onClick={downloadSvg}
           disabled={isEmpty || exportUnavailable}
         >
-          <Download size={18} /> {exportAsPaths ? "Download outlined" : "Download SVG"}
+          <Download size={18} /> Download SVG
         </button>
       </div>
 

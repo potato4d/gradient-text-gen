@@ -86,7 +86,7 @@ Browser checks were performed in the Codex in-app browser against the Vite devel
 | Font | Switched from Heavy Gothic to Japanese Sans | Passed |
 | Device font discovery | Invoked Local Font Access; the restricted in-app context showed the manual fallback message | Passed |
 | Manual device font | Applied Menlo; preview and copied SVG contained the exact family declaration | Passed |
-| Outlined export controls | Font-file fallback and disabled-until-ready path switch are present | Passed |
+| Automatic outlined export | Policy and serializer tests require paths to replace live text without a mode switch once font data is ready | Passed (automated); browser file-picker rerun pending |
 | Gradient | Changed the selected stop from `#E9F62A` to `#FF00FF` | Passed |
 | Fill layers | Added a second fill and observed two rendered fill nodes | Passed |
 | Preview surface | Switched the preview to dark | Passed |
@@ -98,6 +98,8 @@ Browser checks were performed in the Codex in-app browser against the Vite devel
 | Console | No browser warning or error entries | Passed |
 
 ## Visual Evidence
+
+The current Chrome-control environment did not allow an automated local font-file selection, so the new no-toggle upload journey remains pending for a manual browser rerun. This does not weaken the automated contract: `exportPolicy.test.ts` rejects live-text fallback after a font source is ready, and the outlined serializer tests require reusable path geometry with no `<text>` or font dependency.
 
 - `docs/qa/desktop-final.png`: final desktop viewport capture.
 - `docs/qa/mobile-final.png`: final 390 × 844 capture at the top of the document.

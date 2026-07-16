@@ -22,3 +22,4 @@ When implementing from a selected generated mock, treat that image as the source
 - Outside outline sizes are absolute distances from the glyph edge. The canonical preset uses black 12 px and white 20 px with miter joins.
 - Verify the canonical preset in Chrome at device scale factor 2 with ImageMagick using the thresholds in `frame-2.manifest.json`; macOS ImageIO remains a secondary renderer diagnostic.
 - Do not expose DelaSuko as a built-in or default font because most devices do not have it installed. Use the Japanese system-font stack by default, let users load installed device fonts explicitly, and keep DelaSuko limited to the canonical Frame 2 verification fixture.
+- Do not expose an opt-in outline-export switch. Whenever authorized device-font data or a selected font file is available, preview, copy, and download must automatically use path-based SVG output; live text is only a fallback while font data is unavailable.
