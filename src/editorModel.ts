@@ -142,7 +142,7 @@ export const createFill = (index = 0): FillLayer => ({
 export const createOutline = (index = 0): OutlineLayer => ({
   id: uid("outline"),
   enabled: true,
-  name: `Outline ${index + 1}`,
+  name: `Border ${index + 1}`,
   color: ["#111216", "#FFFFFF", "#6F78FF", "#F4FF77"][index % 4],
   thickness: Math.min(80, 12 + index * 8),
   opacity: 100,

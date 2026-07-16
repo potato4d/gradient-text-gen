@@ -10,6 +10,9 @@ export interface LocalFontRecord {
 
 type QueryLocalFonts = () => Promise<LocalFontRecord[]>;
 type LocalFontWindow = Window & { queryLocalFonts?: QueryLocalFonts };
+type QueryLocalFontPermission = () => Promise<PermissionState>;
+
+export type LocalFontPermissionState = PermissionState | "unsupported";
 
 export class LocalFontAccessError extends Error {
   constructor(
@@ -25,6 +28,27 @@ export function quoteCssFontFamily(family: string): string {
   const normalized = family.trim().replace(/[\u0000\r\n\f]/g, " ");
   if (!normalized) throw new Error("Font family cannot be empty.");
   return `'${normalized.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+function defaultLocalFontPermissionQuery(): QueryLocalFontPermission | undefined {
+  if (typeof navigator === "undefined" || !navigator.permissions?.query) return undefined;
+  return async () => {
+    const result = await navigator.permissions.query({
+      name: "local-fonts",
+    } as unknown as PermissionDescriptor);
+    return result.state;
+  };
+}
+
+export async function queryLocalFontPermissionState(
+  query: QueryLocalFontPermission | undefined = defaultLocalFontPermissionQuery(),
+): Promise<LocalFontPermissionState> {
+  if (!query) return "unsupported";
+  try {
+    return await query();
+  } catch {
+    return "unsupported";
+  }
 }
 
 export function unquoteCssFontFamily(family: string): string {

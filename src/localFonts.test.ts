@@ -4,6 +4,7 @@ import {
   LocalFontAccessError,
   chooseDeviceFontRecord,
   createDeviceFontOptions,
+  queryLocalFontPermissionState,
   queryDeviceFonts,
   quoteCssFontFamily,
   unquoteCssFontFamily,
@@ -37,6 +38,18 @@ test("reports unsupported installed font discovery", async () => {
   await assert.rejects(
     queryDeviceFonts(undefined),
     (error: unknown) => error instanceof LocalFontAccessError && error.reason === "unsupported",
+  );
+});
+
+test("reads an already granted local-font permission without requesting it", async () => {
+  assert.equal(await queryLocalFontPermissionState(async () => "granted"), "granted");
+  assert.equal(await queryLocalFontPermissionState(async () => "prompt"), "prompt");
+  assert.equal(await queryLocalFontPermissionState(undefined), "unsupported");
+  assert.equal(
+    await queryLocalFontPermissionState(async () => {
+      throw new Error("unsupported descriptor");
+    }),
+    "unsupported",
   );
 });
 

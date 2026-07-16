@@ -12,7 +12,7 @@ npm run test:visual
 git diff --check
 ```
 
-The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers the device-independent default font, CLI parsing and configuration, local font family normalization and deduplication, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the isolated reference document, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
+The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers the device-independent default font, CLI parsing and configuration, local font family normalization, permission-state reuse, persisted workspace validation and migration, user-facing Border names, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the isolated reference document, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
 
 The production build must include `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`. The worker tests verify static delivery, HTML navigation fallback, and unmodified asset 404 responses.
 
@@ -85,14 +85,17 @@ Browser checks were performed in the Codex in-app browser against the Vite devel
 | Mobile overflow | `scrollWidth` equals 390 px for body and document | Passed |
 | Font | Switched from Heavy Gothic to Japanese Sans | Passed |
 | Device font discovery | Invoked Local Font Access; the restricted in-app context showed the manual fallback message | Passed |
+| Granted device font reuse | Permission-state tests require page-entry loading only for an existing `granted` state; `prompt`, `denied`, and unsupported states do not request access | Passed (automated) |
 | Manual device font | Applied Menlo; preview and copied SVG contained the exact family declaration | Passed |
-| Automatic outlined export | Policy and serializer tests require paths to replace live text without a mode switch once font data is ready | Passed (automated); browser file-picker rerun pending |
+| Automatic path export | Policy and serializer tests require paths to replace live text without a mode switch or status area once font data is ready | Passed (automated); browser file-picker rerun pending |
+| Border terminology | Chrome exposed a `Borders` region and no `Outlines` heading or automatic-outline status area | Passed |
+| Workspace persistence | Changed text, preview surface, and zoom; all three values survived a Chrome reload | Passed |
 | Gradient | Changed the selected stop from `#E9F62A` to `#FF00FF` | Passed |
 | Fill layers | Added a second fill and observed two rendered fill nodes | Passed |
 | Preview surface | Switched the preview to dark | Passed |
-| Outline maximum | Added outlines until twelve were active; add action disabled at the limit | Passed |
-| Outline placement | Changed an outline to `inside`; clip path and inside node appeared | Passed |
-| Zero outlines | Removed both starter outlines; no placement nodes remained | Passed |
+| Border maximum | Added borders until twelve were active; add action disabled at the limit | Passed |
+| Border placement | Changed a border to `inside`; clip path and inside node appeared | Passed |
+| Zero borders | Removed both starter borders; no placement nodes remained | Passed |
 | Copy SVG | Clipboard included XML declaration, reference gradient stop, and font declaration | Passed |
 | Download SVG | Download action completed and displayed success feedback | Passed |
 | Console | No browser warning or error entries | Passed |

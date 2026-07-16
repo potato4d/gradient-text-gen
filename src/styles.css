@@ -499,59 +499,6 @@ select:disabled {
   opacity: 0;
 }
 
-.path-export-control {
-  display: grid;
-  min-width: 0;
-  align-items: center;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
-}
-
-.path-export-control.is-ready {
-  border-color: rgba(115, 117, 255, 0.46);
-  background: var(--accent-soft);
-}
-
-.path-export-control strong,
-.path-export-control small {
-  display: block;
-}
-
-.path-export-control strong {
-  color: var(--muted-strong);
-  font-size: 10px;
-  font-weight: 720;
-}
-
-.path-export-control small {
-  overflow: hidden;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-}
-
-.path-export-status {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-}
-
-.path-export-control.is-ready .path-export-status {
-  border-color: rgba(115, 117, 255, 0.6);
-  color: #c9caff;
-  background: rgba(115, 117, 255, 0.16);
-}
-
 .is-spinning {
   animation: spin 800ms linear infinite;
 }

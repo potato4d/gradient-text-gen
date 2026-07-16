@@ -19,7 +19,7 @@ The references define the interaction density and output capabilities. The appli
 2. Choose a font and text size.
 3. Add, remove, reorder, enable, and configure fill layers.
 4. Edit gradient color stops with direct color inputs and a visual picker.
-5. Add, remove, reorder, enable, and configure outline layers.
+5. Add, remove, reorder, enable, and configure border layers.
 6. Inspect the live result against transparent, light, or dark preview surfaces.
 7. Download an SVG that preserves the selected text, font declaration, gradients, opacity, and outline stacking.
 
@@ -37,12 +37,14 @@ The references define the interaction density and output capabilities. The appli
 - Selectable font family from a curated browser-safe stack.
 - The default is the Japanese system-font stack and must not assume DelaSuko is installed.
 - User-initiated discovery of installed device font families through the Local Font Access API when supported.
+- Automatically reload the device-font catalog on page entry only when the browser reports that `local-fonts` permission is already granted; a new permission prompt always requires a user action.
 - Manual font-family entry when installed font discovery is unsupported, unavailable, or denied.
 - Font weight and text size controls.
 - Letter spacing and line-height controls.
 - The selected font settings must be included in the exported SVG.
 - Authorized device-font data or a user-selected OTF, TTF, or WOFF file automatically converts every glyph to SVG paths without an opt-in export switch.
 - Preview, copy, and download automatically prefer the path-based SVG whenever conversion is available; live text is only the fallback while no readable font data is available.
+- Automatic path conversion is implicit and does not add a dedicated status card or outline-export area to the editor.
 - Outlined export must keep font bytes local, exclude font-family dependencies, and stop with a clear error when the selected font lacks a required glyph.
 
 ### Fills and Gradients
@@ -55,9 +57,10 @@ The references define the interaction density and output capabilities. The appli
 - Color input through native color pickers and hexadecimal values.
 - Linear gradient angle control.
 
-### Outlines
+### Borders
 
-- Zero to twelve outline layers, exceeding the required ten-layer minimum.
+- The interface calls editable stroke layers "Borders" while the SVG model and CLI retain `outline` naming for compatibility.
+- Zero to twelve border layers, exceeding the required ten-layer minimum.
 - Enable/disable, add, remove, and reorder controls.
 - Per-layer color, thickness, opacity, and `outside` / `center` / `inside` placement controls.
 - Outside size is the absolute distance from the glyph edge. A 20 px outside outline therefore serializes as a 40 px centered SVG stroke behind the fill.
@@ -72,6 +75,7 @@ The references define the interaction density and output capabilities. The appli
 - SVG download with a safe filename.
 - Copy SVG source to the clipboard.
 - Reset to the device-independent starter settings.
+- Restore the last editor document, preview background, and zoom from localStorage; uploaded font binaries are never persisted and must be selected again after reload.
 - Deterministic serialization: identical visible settings must produce identical final SVG file content, excluding comments.
 
 ### Command Line
@@ -121,8 +125,8 @@ The final Frame 2 PNG is the sole visual contract for one named outlined configu
 - The initial web and CLI documents use the Japanese system-font stack, fit their content, and contain no DelaSuko dependency.
 - A device or manually entered font family updates the preview and is preserved in exported SVG markup.
 - Outlined export contains reusable SVG path geometry and no `<text>`, `<tspan>`, `font-family`, or embedded font data.
-- At least three gradient stops and two outlines can be active at once.
-- The editor supports no outline and at least ten concurrent outline layers.
+- At least three gradient stops and two borders can be active at once.
+- The editor supports no border and at least ten concurrent border layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
 - Equivalent CLI and web settings produce byte-identical SVG markup.
 - CLI file/stdout, browser preview, clipboard, and download use the same canonical UTF-8 SVG bytes without adding an end-of-file newline.

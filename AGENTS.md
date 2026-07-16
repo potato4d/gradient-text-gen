@@ -23,4 +23,8 @@ When implementing from a selected generated mock, treat that image as the source
 - Verify the canonical preset in Chrome at device scale factor 2 with ImageMagick using the thresholds in `frame-2.manifest.json`; macOS ImageIO remains a secondary renderer diagnostic.
 - Do not expose DelaSuko as a built-in or default font because most devices do not have it installed. Use the Japanese system-font stack by default, let users load installed device fonts explicitly, and keep DelaSuko limited to the canonical Frame 2 verification fixture.
 - Do not expose an opt-in outline-export switch. Whenever authorized device-font data or a selected font file is available, preview, copy, and download must automatically use path-based SVG output; live text is only a fallback while font data is unavailable.
+- Do not expose a dedicated automatic-outline status card or area; keep path conversion implicit while preserving its fail-closed behavior.
 - Do not expose a canvas-mode control in the web editor. Keep normal editing content-fitted and reserve fixed Frame 2 geometry for verification fixtures and non-UI compatibility.
+- Call editable stroke layers "Borders" throughout the user interface; keep `outline` terminology only in the internal model, serializer, CLI, and compatibility documentation.
+- If the browser reports the `local-fonts` permission as already granted, load the device-font catalog on page entry. Never trigger a new permission prompt without a user action.
+- Persist the last editor document, preview background, and zoom in localStorage. Do not persist font binaries; uploaded font files must be selected again after reload.

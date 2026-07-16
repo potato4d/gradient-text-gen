@@ -29,11 +29,17 @@ The web editor and CLI start with the same content-fitted Japanese system-font d
 
 The ordinary starter uses content-derived `fit` bounds. The explicit reference document starts on its pinned 874 × 310 artboard, while web text/font/typography edits and CLI geometry overrides switch to `fit` unless a fixed frame is explicitly selected, preventing ordinary long or multiline content from inheriting the Sketch calibration and clipping.
 
-Installed font discovery is user-initiated because browsers require explicit permission. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
+New installed-font permission requests are user-initiated because browsers require explicit consent. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
+
+Chrome persists the `local-fonts` permission across reloads. On page entry, the editor queries only the existing permission state and automatically loads the device-font catalog when that state is already `granted`; `prompt` and `denied` states never cause a page-load permission request.
 
 Outlined export keeps parsed font data outside the serializable editor document. The browser may read bytes from an authorized `FontData.blob()` or a user-selected OTF, TTF, or WOFF file; the CLI requires an explicit file path. `textToPath.ts` lays out glyph paths with font metrics, kerning, tracking, alignment, and multiline baselines. It closes CFF contours before stroking, treats the parsed font file's weight as authoritative, and separates fit bounds from an optional fixed reference frame. The SVG stores the combined geometry once in `<defs>` and reuses it for every fill and outline layer.
 
-The web editor has no outline-export mode switch. As soon as readable font bytes are available, path serialization automatically replaces live-text markup for preview, clipboard, and download. Live text remains only as the editing fallback before a font source is authorized or selected; a path-generation error blocks silent fallback for that loaded source.
+The web editor has no outline-export mode switch or dedicated outline-status area. As soon as readable font bytes are available, path serialization automatically replaces live-text markup for preview, clipboard, and download. Live text remains only as the editing fallback before a font source is authorized or selected; a path-generation error blocks silent fallback for that loaded source.
+
+The UI names editable stroke layers "Borders" to distinguish them from font-to-path conversion. The serialized document, TypeScript model, and CLI keep `outlines[]` and `--outline` for backward compatibility.
+
+`preferences.ts` validates and versions the localStorage workspace payload. It restores the editor document with content-fitted bounds plus the preview background and zoom, rejects malformed data, and never stores parsed fonts or font bytes.
 
 ## Rendering Strategy
 

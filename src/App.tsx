@@ -43,6 +43,7 @@ import {
   LocalFontAccessError,
   chooseDeviceFontRecord,
   queryDeviceFontCatalog,
+  queryLocalFontPermissionState,
   quoteCssFontFamily,
   unquoteCssFontFamily,
   type LocalFontRecord,
@@ -60,6 +61,11 @@ import {
   type SvgLayout,
 } from "./svg.js";
 import { resolveAutomaticSvgOutput } from "./exportPolicy.js";
+import {
+  loadStoredWorkspace,
+  saveStoredWorkspace,
+  type PreviewBackground,
+} from "./preferences.js";
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -220,9 +226,6 @@ function SectionHeading({
 interface TextControlsProps {
   editor: EditorDocument;
   onChange: (editor: EditorDocument) => void;
-  outlineFont: OutlineFontSource | null;
-  pathExportError: string | null;
-  outlineLoadState: OutlineLoadState;
   onOutlineFontChange: (source: OutlineFontSource | null) => void;
   onOutlineLoadStateChange: (state: OutlineLoadState) => void;
 }
@@ -230,19 +233,12 @@ interface TextControlsProps {
 interface FontPickerProps {
   typography: TypographySettings;
   onChange: (patch: Partial<TypographySettings>) => void;
-  outlineFont: OutlineFontSource | null;
-  pathExportError: string | null;
-  outlineLoadState: OutlineLoadState;
   onOutlineFontChange: (source: OutlineFontSource | null) => void;
   onOutlineLoadStateChange: (state: OutlineLoadState) => void;
 }
 
 interface OutlineFontSource {
   font: OutlineFont;
-  label: string;
-  origin: "device" | "file";
-  family: string;
-  weight: number;
 }
 
 type FontLoadState = "idle" | "loading" | "ready" | "unsupported" | "denied" | "failed";
@@ -251,9 +247,6 @@ type OutlineLoadState = "idle" | "loading" | "ready" | "unavailable" | "failed";
 function FontPicker({
   typography,
   onChange,
-  outlineFont,
-  pathExportError,
-  outlineLoadState,
   onOutlineFontChange,
   onOutlineLoadStateChange,
 }: FontPickerProps) {
@@ -272,7 +265,7 @@ function FontPicker({
     setCustomFontDraft(unquoteCssFontFamily(typography.fontFamily));
   }, [typography.fontFamily, typography.fontId]);
 
-  const loadDeviceFonts = async () => {
+  const loadDeviceFonts = useCallback(async () => {
     setLoadState("loading");
     try {
       const catalog = await queryDeviceFontCatalog();
@@ -286,7 +279,17 @@ function FontPicker({
         setLoadState("failed");
       }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void queryLocalFontPermissionState().then((permissionState) => {
+      if (!cancelled && permissionState === "granted") void loadDeviceFonts();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadDeviceFonts]);
 
   useEffect(() => {
     if (!typography.fontId.startsWith("device:") || deviceFontRecords.length === 0) return;
@@ -314,10 +317,6 @@ function FontPicker({
         onChange({ fontWeight });
         onOutlineFontChange({
           font,
-          label: record.fullName || record.style || record.family,
-          origin: "device",
-          family,
-          weight: fontWeight,
         });
         onOutlineLoadStateChange("ready");
       })
@@ -374,10 +373,6 @@ function FontPicker({
       setCustomFontDraft(family);
       onOutlineFontChange({
         font,
-        label: file.name,
-        origin: "file",
-        family,
-        weight: fontWeight,
       });
       onOutlineLoadStateChange("ready");
     } catch {
@@ -484,34 +479,6 @@ function FontPicker({
         </label>
         <span>OTF, TTF, or WOFF</span>
       </div>
-      <div className={`path-export-control ${outlineFont && !pathExportError ? "is-ready" : ""}`}>
-        <div>
-          <strong>Automatic text outlines</strong>
-          <small>
-            {pathExportError
-              ? pathExportError
-              : outlineLoadState === "loading"
-                ? "Preparing font outlines…"
-                : outlineFont
-                  ? `${outlineFont.label} is converted to portable paths automatically.`
-                  : outlineLoadState === "failed"
-                    ? "That font could not be read. Try another OTF, TTF, or WOFF file."
-                    : "Load a device font or font file to replace live text with paths."}
-          </small>
-        </div>
-        <span
-          className="path-export-status"
-          aria-label={
-            outlineFont && !pathExportError
-              ? "Automatic outlines ready"
-              : outlineFont
-                ? "Outline conversion unavailable"
-                : "Live text fallback"
-          }
-        >
-          {outlineFont && !pathExportError ? <Check size={14} /> : <Type size={14} />}
-        </span>
-      </div>
     </div>
   );
 }
@@ -519,9 +486,6 @@ function FontPicker({
 function TextControls({
   editor,
   onChange,
-  outlineFont,
-  pathExportError,
-  outlineLoadState,
   onOutlineFontChange,
   onOutlineLoadStateChange,
 }: TextControlsProps) {
@@ -560,9 +524,6 @@ function TextControls({
         <FontPicker
           typography={typography}
           onChange={updateTypography}
-          outlineFont={outlineFont}
-          pathExportError={pathExportError}
-          outlineLoadState={outlineLoadState}
           onOutlineFontChange={onOutlineFontChange}
           onOutlineLoadStateChange={onOutlineLoadStateChange}
         />
@@ -894,9 +855,9 @@ function OutlineEditor({ outline, onChange }: OutlineEditorProps) {
     <div className="layer-editor outline-editor">
       <div className="control-grid control-grid-two outline-top-grid">
         <div>
-          <FieldLabel>Stroke color</FieldLabel>
+          <FieldLabel>Border color</FieldLabel>
           <HexField
-            label="Outline"
+            label="Border"
             value={outline.color}
             onChange={(color) => onChange({ ...outline, color })}
           />
@@ -959,12 +920,12 @@ function OutlinePanel({
     onChange(outlines.map((outline) => (outline.id === id ? nextOutline : outline)));
 
   return (
-    <section className="editor-section" aria-labelledby="outlines-heading">
+    <section className="editor-section" aria-labelledby="borders-heading">
       <SectionHeading
         icon={Layers3}
-        title="Outlines"
-        description={`Layer 0–${MAX_OUTLINES} editable rings around or inside the glyphs.`}
-        headingId="outlines-heading"
+        title="Borders"
+        description={`Layer 0–${MAX_OUTLINES} editable borders around or inside the glyphs.`}
+        headingId="borders-heading"
         action={
           <button
             className="add-button"
@@ -982,7 +943,7 @@ function OutlinePanel({
       />
       <div className="layer-list">
         {outlines.length === 0 ? (
-          <p className="empty-layers">No outlines. The artwork is using fills only.</p>
+          <p className="empty-layers">No borders. The artwork is using fills only.</p>
         ) : null}
         {outlines.map((outline, index) => {
           const isSelected = outline.id === selectedId;
@@ -1011,7 +972,7 @@ function OutlinePanel({
                   item={outline}
                   index={index}
                   count={outlines.length}
-                  noun="outline"
+                  noun="border"
                   onMove={(direction) => onChange(swapById(outlines, outline.id, direction))}
                   onRemove={() => {
                     const next = outlines.filter((item) => item.id !== outline.id);
@@ -1033,8 +994,6 @@ function OutlinePanel({
     </section>
   );
 }
-
-type PreviewBackground = "transparent" | "light" | "dark";
 
 interface PreviewStageProps {
   markup: string;
@@ -1125,7 +1084,8 @@ function ActionButton({ icon: Icon, children, primary = false, ...props }: Actio
 }
 
 export function App() {
-  const initial = useRef(createInitialDocument()).current;
+  const [storedWorkspace] = useState(() => loadStoredWorkspace());
+  const initial = useRef(storedWorkspace?.editor ?? createInitialDocument()).current;
   const [editor, setEditor] = useState(initial);
   const [selectedFillId, setSelectedFillId] = useState<string | null>(
     initial.fills[0]?.id ?? null,
@@ -1133,8 +1093,10 @@ export function App() {
   const [selectedOutlineId, setSelectedOutlineId] = useState<string | null>(
     initial.outlines[0]?.id ?? null,
   );
-  const [background, setBackground] = useState<PreviewBackground>("transparent");
-  const [zoom, setZoom] = useState(100);
+  const [background, setBackground] = useState<PreviewBackground>(
+    storedWorkspace?.background ?? "transparent",
+  );
+  const [zoom, setZoom] = useState(storedWorkspace?.zoom ?? 100);
   const [notice, setNotice] = useState("");
   const [outlineFont, setOutlineFont] = useState<OutlineFontSource | null>(null);
   const [outlineLoadState, setOutlineLoadState] = useState<OutlineLoadState>("idle");
@@ -1148,7 +1110,7 @@ export function App() {
       return {
         markup: null,
         layout: null,
-        error: error instanceof Error ? error.message : "Text outlines could not be generated.",
+        error: error instanceof Error ? error.message : "Font paths could not be generated.",
       };
     }
   }, [editor, outlineFont]);
@@ -1164,8 +1126,8 @@ export function App() {
   const unavailableMessage = exportUnavailable
     ? pathExport.error ||
       (outlineLoadState === "loading"
-        ? "Preparing automatic text outlines…"
-        : "This font could not outline every character. Choose another font.")
+        ? "Preparing font paths…"
+        : "This font could not convert every character to paths. Choose another font.")
     : null;
 
   const handleOutlineFontChange = useCallback((source: OutlineFontSource | null) => {
@@ -1177,6 +1139,15 @@ export function App() {
     const timeout = window.setTimeout(() => setNotice(""), 2400);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    saveStoredWorkspace({
+      version: 1,
+      editor,
+      background,
+      zoom,
+    });
+  }, [background, editor, zoom]);
 
   const reset = () => {
     const next = createInitialDocument();
@@ -1192,12 +1163,12 @@ export function App() {
 
   const copySvg = async () => {
     if (exportUnavailable) {
-      setNotice(pathExport.error || "Text outlines are not ready");
+      setNotice(pathExport.error || "Font paths are not ready");
       return;
     }
     try {
       await navigator.clipboard.writeText(automaticOutput.exportMarkup ?? "");
-      setNotice(automaticOutput.isOutlined ? "Outlined SVG source copied" : "SVG source copied");
+      setNotice(automaticOutput.isOutlined ? "Path-based SVG source copied" : "SVG source copied");
     } catch {
       setNotice("Clipboard access was blocked");
     }
@@ -1205,7 +1176,7 @@ export function App() {
 
   const downloadSvg = () => {
     if (isEmpty || exportUnavailable) {
-      if (exportUnavailable) setNotice(pathExport.error || "Text outlines are not ready");
+      if (exportUnavailable) setNotice(pathExport.error || "Font paths are not ready");
       return;
     }
     const blob = new Blob([automaticOutput.exportMarkup ?? ""], {
@@ -1224,7 +1195,7 @@ export function App() {
     anchor.click();
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice(automaticOutput.isOutlined ? "Outlined SVG downloaded" : "SVG downloaded");
+    setNotice(automaticOutput.isOutlined ? "Path-based SVG downloaded" : "SVG downloaded");
   };
 
   return (
@@ -1262,14 +1233,11 @@ export function App() {
           <div className="editor-intro">
             <span className="eyebrow">Artwork settings</span>
             <h1>Make type with depth.</h1>
-            <p>Compose gradients and up to twelve precisely placed outline rings.</p>
+            <p>Compose gradients and up to twelve precisely placed border layers.</p>
           </div>
           <TextControls
             editor={editor}
             onChange={setEditor}
-            outlineFont={outlineFont}
-            pathExportError={pathExport.error}
-            outlineLoadState={outlineLoadState}
             onOutlineFontChange={handleOutlineFontChange}
             onOutlineLoadStateChange={setOutlineLoadState}
           />
