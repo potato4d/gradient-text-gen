@@ -41,6 +41,8 @@ The UI names editable stroke layers "Borders" to distinguish them from font-to-p
 
 `preferences.ts` validates and versions the localStorage workspace payload. It restores the editor document with content-fitted bounds plus the preview background and zoom, rejects malformed data, and never stores parsed fonts or font bytes.
 
+`GRADIENT_PRESETS` in `editorModel.ts` is the single typed catalog for the eight quick gradients. The first entry owns the canonical Sunbeam values used by the initial and Frame 2 reference documents. Applying a preset clones its visual settings into fresh transient stop IDs while preserving the selected fill's identity, enabled state, and layer opacity; the serializer continues to exclude those IDs so equivalent preset applications remain byte-identical.
+
 ## Rendering Strategy
 
 - Measure the text in the browser to derive a padded SVG view box.
@@ -72,12 +74,12 @@ The UI names editable stroke layers "Borders" to distinguish them from font-to-p
 - `PreviewStage`: live SVG, preview surface, zoom controls, and empty handling.
 - `TextControls`: copy and typography controls.
 - `LayerPanel`: fill and outline collections.
-- `FillEditor`: solid/gradient type, angle, opacity, and stop editing.
+- `FillEditor`: quick gradient selection, solid/gradient type, angle, opacity, and stop editing.
 - `ColorStopEditor`: stop rail, selected color values, add/remove controls.
 - `OutlineEditor`: placement, width, opacity, and color controls.
 - `ExportActions`: reset, clipboard, and SVG download actions.
 - `cli.ts`: argument/config validation, document overrides, and file/stdout output.
-- `editorModel.ts`: shared strict types and document factories.
+- `editorModel.ts`: shared strict types, the quick-gradient catalog, preset application/matching helpers, and document factories.
 - `localFonts.ts`: installed font discovery, deduplication, and CSS family quoting.
 - `textToPath.ts`: local font parsing, missing-glyph validation, glyph layout, and deterministic path geometry.
 - `frame2Calibration.ts`: narrowly fingerprinted canonical outer-outline geometry and safe generic fallback selection.
@@ -99,12 +101,12 @@ dist-cli/                   # Node.js CLI package output
 
 The worker delegates static requests to the platform asset binding. Requests that accept HTML fall back to `index.html`, which keeps direct links and browser refreshes inside the React application.
 
-Production is hosted by AWS Amplify from the `master` branch. Amplify follows the checked-in `amplify.yml`, gates publication on strict TypeScript checks and unit tests, and serves `dist/client`. See [Deployment](DEPLOYMENT.md) for the release and rollback contract.
+Production is hosted by ChatGPT Sites from validated `master` commits. Each Sites release records the exact pushed commit, packages the established Worker-compatible build, saves a version, and deploys that version to the custom domain. See [Deployment](DEPLOYMENT.md) for the release and rollback contract.
 
 ## Testing Strategy
 
 - TypeScript compilation is a release gate through `npm run typecheck`.
-- Unit tests for CLI parsing, color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
+- Unit tests for CLI parsing, color normalization, the eight-preset catalog, preset application, gradient coordinate math, text escaping, outline placement, and SVG serialization.
 - A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
 - CLI smoke checks generate the same file twice and compare it byte for byte.
 - A checked-in Sketch PNG oracle gate validates fixture/font hashes and rasterizes the shared SVG through headless, software-rendered Chrome at device scale factor 2. ImageMagick enforces 99.95% NCC similarity and alpha overlap plus dimensions, color space, alpha bounds, aggregate/per-channel RMSE, RGBA PSNR, and alpha-support XOR limits. macOS ImageIO remains a non-blocking secondary diagnostic, and each result records the renderer environment.

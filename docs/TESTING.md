@@ -12,7 +12,7 @@ npm run test:visual
 git diff --check
 ```
 
-The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers the device-independent default font, CLI parsing and configuration, local font family normalization, permission-state reuse, persisted workspace validation and migration, user-facing Border names, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the isolated reference document, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
+The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers the device-independent default font, CLI parsing and configuration, local font family normalization, permission-state reuse, persisted workspace validation and migration, user-facing Border names, the eight unique quick-gradient presets, canonical Sunbeam values, preset application, deterministic preset output, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the isolated reference document, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
 
 The production build must include `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`. The worker tests verify static delivery, HTML navigation fallback, and unmodified asset 404 responses.
 
@@ -76,7 +76,7 @@ Use `npm run verify` for the full local release gate. The visual step fails clea
 
 ## Browser Verification Matrix
 
-Browser checks were performed in the Codex in-app browser against the Vite development server.
+Browser checks were performed in Google Chrome against the Vite development server.
 
 | Area | Verification | Result |
 | --- | --- | --- |
@@ -90,6 +90,7 @@ Browser checks were performed in the Codex in-app browser against the Vite devel
 | Automatic path export | Policy and serializer tests require paths to replace live text without a mode switch or status area once font data is ready | Passed (automated); browser file-picker rerun pending |
 | Border terminology | Chrome exposed a `Borders` region and no `Outlines` heading or automatic-outline status area | Passed |
 | Workspace persistence | Changed text, preview surface, and zoom; all three values survived a Chrome reload | Passed |
+| Quick gradients | Confirmed eight named presets, selected multiple swatches, observed the active state and editable stops, and retained the selected preset after reload | Passed |
 | Gradient | Changed the selected stop from `#E9F62A` to `#FF00FF` | Passed |
 | Fill layers | Added a second fill and observed two rendered fill nodes | Passed |
 | Preview surface | Switched the preview to dark | Passed |

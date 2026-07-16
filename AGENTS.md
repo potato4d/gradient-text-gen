@@ -28,3 +28,5 @@ When implementing from a selected generated mock, treat that image as the source
 - Call editable stroke layers "Borders" throughout the user interface; keep `outline` terminology only in the internal model, serializer, CLI, and compatibility documentation.
 - If the browser reports the `local-fonts` permission as already granted, load the device-font catalog on page entry. Never trigger a new permission prompt without a user action.
 - Persist the last editor document, preview background, and zoom in localStorage. Do not persist font binaries; uploaded font files must be selected again after reload.
+- Offer exactly eight built-in quick gradient presets in the Fill editor. Keep the canonical Sunbeam values as the initial preset, apply a preset to the selected fill without changing its enabled state or layer opacity, and leave every resulting stop and angle editable.
+- Publish production releases through ChatGPT Sites using `.openai/hosting.json`; do not treat AWS Amplify as the active host for the custom domain.

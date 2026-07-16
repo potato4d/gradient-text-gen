@@ -4,26 +4,27 @@
 
 - Production URL: `https://gradient-text-gen.potato4d.me/`
 - Production branch: `master`
-- Hosting: AWS Amplify Hosting
-- Trigger: every push to `master`, including pull-request merges
-- Build specification: [`amplify.yml`](../amplify.yml)
+- Hosting: ChatGPT Sites
+- Project binding: [`.openai/hosting.json`](../.openai/hosting.json)
+- Release source: a validated commit on `master`
 
-AWS Amplify is connected directly to the GitHub repository. The branch build runs strict TypeScript checks and the unit suite before producing the static Vite application from `dist/client`. A failed check prevents publication.
+The repository uses its existing Cloudflare Worker-compatible build and the Sites release workflow. A release is saved only after the exact source commit has been pushed to the Sites source repository and `npm run verify` has passed locally.
 
 ## Release flow
 
 1. Merge reviewed changes into `master`.
-2. Amplify detects the new `master` commit and starts a deployment.
-3. The build runs `npm ci`, TypeScript checks, tests, and the web production build.
-4. Amplify publishes `dist/client` only after every build command succeeds.
-5. Verify the production URL and confirm that its deployed revision matches the merged commit.
+2. Run the complete verification gate and production build from that exact commit.
+3. Push the exact commit to the Sites source repository with a short-lived repository credential.
+4. Package `dist/` and the hosting metadata, then save a Sites version against the pushed commit SHA.
+5. Deploy the saved version and poll until Sites reports a successful production publication.
+6. Verify both the Sites URL and the custom production URL in Chrome.
 
-The Chrome/ImageMagick Sketch oracle remains a local merge-grade check through `npm run verify`; it is intentionally excluded from the hosted build because the managed build image does not provide the pinned renderer environment.
+The Chrome/ImageMagick Sketch oracle remains part of `npm run verify`, so a release must retain the pinned Frame 2 visual threshold and Web/CLI byte equality before publication.
 
 ## Rollback
 
-Use Amplify Hosting's deployment history to redeploy the last known-good `master` build. Reverting the faulty commit on `master` creates a new auditable deployment and is preferred when repository history must describe the rollback.
+Redeploy the last known-good saved Sites version when an immediate rollback is required. Reverting the faulty commit on `master`, rebuilding, and publishing a new Sites version is preferred when repository history must describe the rollback.
 
-## Legacy Sites project
+## Legacy Amplify specification
 
-The repository retains `.openai/hosting.json` for the existing Sites project until the Amplify custom domain is verified. Do not deploy both providers to the production hostname at the same time. Remove the legacy custom-domain association only after Amplify reports that the hostname and certificate are active.
+The tracked `amplify.yml` is historical and is not the active production contract. Do not connect Amplify to the production hostname or deploy both providers to the custom domain.

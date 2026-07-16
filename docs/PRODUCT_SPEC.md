@@ -53,6 +53,8 @@ The references define the interaction density and output capabilities. The appli
 - Solid and linear-gradient fill types.
 - Enable/disable, add, remove, and reorder controls.
 - Per-layer opacity.
+- Eight built-in quick gradient presets, including the unchanged canonical Sunbeam starter and seven additional warm, cool, vivid, and neutral options.
+- Selecting a quick gradient converts the selected fill to a linear gradient, preserves its enabled state and layer opacity, and keeps every resulting stop and angle editable.
 - Two or more draggable or directly editable color stops per gradient.
 - Color input through native color pickers and hexadecimal values.
 - Linear gradient angle control.
@@ -126,6 +128,7 @@ The final Frame 2 PNG is the sole visual contract for one named outlined configu
 - A device or manually entered font family updates the preview and is preserved in exported SVG markup.
 - Outlined export contains reusable SVG path geometry and no `<text>`, `<tspan>`, `font-family`, or embedded font data.
 - At least three gradient stops and two borders can be active at once.
+- Exactly eight quick gradients are available from the selected Fill editor, and the canonical Sunbeam preset retains its five original stop values and 180-degree direction.
 - The editor supports no border and at least ten concurrent border layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
 - Equivalent CLI and web settings produce byte-identical SVG markup.
