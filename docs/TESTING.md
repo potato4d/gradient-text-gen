@@ -12,7 +12,7 @@ npm run test:visual
 git diff --check
 ```
 
-The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers CLI parsing and configuration, local font family normalization and deduplication, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the reference preset, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
+The strict TypeScript gate includes the application, CLI, worker, build helpers, and visual-verification scripts. The test suite covers the device-independent default font, CLI parsing and configuration, local font family normalization and deduplication, deterministic glyph paths, missing-glyph rejection, color normalization, XML escaping, gradient geometry, the isolated reference document, deterministic output, zero and twelve outline layers, all three outline placements, the scoped Frame 2 outline calibration, Japanese text, and hosted static delivery behavior.
 
 The production build must include `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`. The worker tests verify static delivery, HTML navigation fallback, and unmodified asset 404 responses.
 
@@ -45,7 +45,7 @@ GRADIENT_TEXT_GEN_REFERENCE_FONT="$HOME/Library/Fonts/DelaSukoGothicOne-R.otf" \
   npm run test:visual
 ```
 
-The final Sketch PNG is the sole visual oracle; the companion SVG is supporting geometry evidence only. The script validates the checked-in fixture and font hashes, requires the web starter preset, equivalent CLI config, and repeated exports to be byte-identical without a trailing newline, runs the authoritative Chrome gate, and records an optional ImageIO diagnostic.
+The final Sketch PNG is the sole visual oracle; the companion SVG is supporting geometry evidence only. The script validates the checked-in fixture and font hashes, requires the explicit reference document, equivalent CLI config, and repeated exports to be byte-identical without a trailing newline, runs the authoritative Chrome gate, and records an optional ImageIO diagnostic. The normal web and CLI starter remains independent of DelaSuko.
 
 The authoritative browser gate keeps the SVG at 874 × 310 and lets Chrome render it at device scale factor 2. ImageMagick then requires:
 

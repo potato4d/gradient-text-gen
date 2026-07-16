@@ -95,6 +95,14 @@ test("accepts an installed font-family declaration", () => {
   );
 });
 
+test("uses the portable Japanese system stack by default", () => {
+  const editor = createDocumentFromOptions({});
+
+  assert.equal(editor.typography.fontId, "japanese-sans");
+  assert.doesNotMatch(editor.typography.fontFamily, /DelaSuko/i);
+  assert.deepEqual(editor.frame, { mode: "fit" });
+});
+
 test("CLI and web serializer settings remain deterministic", () => {
   const options = {
     text: "Deterministic",

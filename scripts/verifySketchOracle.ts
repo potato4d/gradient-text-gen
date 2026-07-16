@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDocumentFromOptions, parseConfig } from "../src/cli.js";
-import { createInitialDocument } from "../src/editorModel.js";
+import { createReferenceDocument } from "../src/editorModel.js";
 import { serializeSvgAsPaths } from "../src/svg.js";
 import {
   getOutlineFontFamily,
@@ -264,8 +264,8 @@ if (getOutlineFontWeight(font) !== manifest.font.weight) {
 const config = parseConfig(JSON.parse(await readFile(configPath, "utf8")) as unknown);
 const editor = createDocumentFromOptions(config);
 const svg = serializeSvgAsPaths(editor, font);
-const webPresetSvg = serializeSvgAsPaths(createInitialDocument(), font);
-const repeatedWebPresetSvg = serializeSvgAsPaths(createInitialDocument(), font);
+const webPresetSvg = serializeSvgAsPaths(createReferenceDocument(), font);
+const repeatedWebPresetSvg = serializeSvgAsPaths(createReferenceDocument(), font);
 if (svg !== webPresetSvg || webPresetSvg !== repeatedWebPresetSvg) {
   throw new Error("Equivalent web preset, CLI config, and repeated exports are not byte-identical");
 }

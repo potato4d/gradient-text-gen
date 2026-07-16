@@ -39,7 +39,7 @@ No additional focused crop is needed: the artwork fills the comparison width, in
 ## Rendering Contract
 
 - The web editor and CLI call the same deterministic TypeScript serializer.
-- Equivalent starter, CLI, and repeated exports emit the same 11,956 canonical UTF-8 bytes without a trailing newline.
+- Equivalent explicit Frame 2 reference documents, the CLI fixture config, and repeated exports emit the same 11,956 canonical UTF-8 bytes without a trailing newline. The ordinary starter is intentionally device-independent.
 - The SVG contains reusable closed path geometry and no `<text>`, `<tspan>`, `font-family`, embedded font binary, image element, or raster pixel geometry.
 - The canonical outer calibration is selected only for the exact reference base path and 20 px outside thickness; every other document uses generic outside/center/inside outline rendering.
 - macOS ImageIO remains a secondary diagnostic and currently reports RMSE `0.00280902`, PSNR `51.0289 dB`, alpha IoU `0.9999204016`, and 41 alpha-support XOR pixels.

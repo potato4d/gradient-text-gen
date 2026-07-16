@@ -25,9 +25,9 @@ document
 
 Every visible control updates this document. Preview markup and downloaded SVG markup are produced from the same state to avoid export drift.
 
-The CLI starts with the same document preset, applies validated command-line or JSON overrides, and calls the same serializer. Transient IDs are never included in SVG output.
+The web editor and CLI start with the same content-fitted Japanese system-font document, apply validated overrides, and call the same serializer. DelaSuko is isolated to the explicit Frame 2 verification document rather than presented as an installed font. Transient IDs are never included in SVG output.
 
-The reference preset starts on its pinned 874 × 310 artboard. Web text/font/typography edits and CLI geometry overrides switch to `fit` unless a fixed frame is explicitly selected, preventing ordinary long or multiline content from inheriting the Sketch calibration and clipping.
+The ordinary starter uses content-derived `fit` bounds. The explicit reference document starts on its pinned 874 × 310 artboard, while web text/font/typography edits and CLI geometry overrides switch to `fit` unless a fixed frame is explicitly selected, preventing ordinary long or multiline content from inheriting the Sketch calibration and clipping.
 
 Installed font discovery is user-initiated because browsers require explicit permission. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
 

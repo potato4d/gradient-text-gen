@@ -71,11 +71,17 @@ export interface EditorDocument {
   frame: SvgFrame;
 }
 
+export const DEFAULT_FONT_ID = "japanese-sans";
+export const DEFAULT_FONT_FAMILY =
+  "'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif";
+export const REFERENCE_FONT_ID = "reference:dela-suko";
+export const REFERENCE_FONT_FAMILY = "'DelaSuko Gothic One', sans-serif";
+
 export const FONT_OPTIONS: FontOption[] = [
   {
-    id: "dela-suko",
-    label: "DelaSuko Gothic One",
-    family: "'DelaSuko Gothic One', sans-serif",
+    id: DEFAULT_FONT_ID,
+    label: "Japanese Sans",
+    family: DEFAULT_FONT_FAMILY,
   },
   {
     id: "heavy-gothic",
@@ -86,11 +92,6 @@ export const FONT_OPTIONS: FontOption[] = [
     id: "modern-gothic",
     label: "Modern Gothic",
     family: "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
-  },
-  {
-    id: "japanese-sans",
-    label: "Japanese Sans",
-    family: "'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif",
   },
   {
     id: "editorial-serif",
@@ -171,12 +172,12 @@ export const createReferenceFrame = (): SvgFrame => ({
   ],
 });
 
-export const createInitialDocument = (): EditorDocument => ({
+export const createReferenceDocument = (): EditorDocument => ({
   version: 1,
   text: "ライゼオル",
   typography: {
-    fontId: "dela-suko",
-    fontFamily: FONT_OPTIONS[0].family,
+    fontId: REFERENCE_FONT_ID,
+    fontFamily: REFERENCE_FONT_FAMILY,
     fontWeight: 400,
     fontSize: 155,
     letterSpacing: 0,
@@ -217,6 +218,14 @@ export const createInitialDocument = (): EditorDocument => ({
   ],
   frame: createReferenceFrame(),
 });
+
+export const createInitialDocument = (): EditorDocument => {
+  const editor = createReferenceDocument();
+  editor.typography.fontId = DEFAULT_FONT_ID;
+  editor.typography.fontFamily = DEFAULT_FONT_FAMILY;
+  editor.frame = { mode: "fit" };
+  return editor;
+};
 
 export const clamp = (value: number | string, min: number, max: number): number =>
   Math.min(max, Math.max(min, Number(value)));

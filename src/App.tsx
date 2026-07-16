@@ -1191,7 +1191,7 @@ export function App() {
     setZoom(100);
     setOutlineFont(null);
     setExportAsPaths(false);
-    setNotice("Reference preset restored");
+    setNotice("Starter settings restored");
   };
 
   const copySvg = async () => {

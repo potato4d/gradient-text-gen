@@ -19,7 +19,7 @@ The package exposes the `gradient-text-gen` binary when installed or linked thro
 
 ## Common Examples
 
-Generate the reference preset with different text:
+Generate with the device-independent starter settings and different text:
 
 ```bash
 gradient-text-gen --text "ライゼオル" --output artwork.svg
@@ -129,7 +129,7 @@ JSON configuration also accepts a deterministic frame:
 }
 ```
 
-Use `{ "frame": { "mode": "fit" } }` for content-derived bounds. When text or typography differs from the starter preset and no frame is supplied, the CLI selects `fit` automatically. Optional per-glyph offsets are intended for deterministic import/reference calibration, not font shaping.
+Use `{ "frame": { "mode": "fit" } }` for content-derived bounds. The CLI uses `fit` by default and preserves a fixed artboard only when the config explicitly supplies one. Optional per-glyph offsets are intended for deterministic import/reference calibration, not font shaping.
 
 Command-line options override config values. The resulting SVG contains no timestamps, random identifiers, comments, or operation history.
 

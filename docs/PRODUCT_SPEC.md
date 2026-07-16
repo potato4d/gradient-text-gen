@@ -25,7 +25,7 @@ The references define the interaction density and output capabilities. The appli
 
 ## CLI Journey
 
-1. Start from the same reference preset used by the web editor.
+1. Start from the same device-independent starter used by the web editor.
 2. Override text, typography, fill, gradient stops, angle, and outline layers with command-line options or JSON config.
 3. Write the deterministic SVG to a file or standard output.
 
@@ -35,6 +35,7 @@ The references define the interaction density and output capabilities. The appli
 
 - Editable text with multiline support.
 - Selectable font family from a curated browser-safe stack.
+- The default is the Japanese system-font stack and must not assume DelaSuko is installed.
 - User-initiated discovery of installed device font families through the Local Font Access API when supported.
 - Manual font-family entry when installed font discovery is unsupported, unavailable, or denied.
 - Font weight and text size controls.
@@ -69,7 +70,7 @@ The references define the interaction density and output capabilities. The appli
 - A visible canvas mode selects the fixed Frame 2 reference artboard or content-derived fit bounds. Editing text or typography switches to fit bounds automatically.
 - SVG download with a safe filename.
 - Copy SVG source to the clipboard.
-- Reset to the canonical Frame 2 starter preset.
+- Reset to the device-independent starter settings.
 - Deterministic serialization: identical visible settings must produce identical final SVG file content, excluding comments.
 
 ### Command Line
@@ -103,6 +104,7 @@ The references define the interaction density and output capabilities. The appli
 
 The final Frame 2 PNG is the sole visual contract for one named outlined configuration. Its config, supporting source SVG, Sketch PNG, font fingerprint, dimensions, rasterizers, comparison metrics, and thresholds are declared once in `test/fixtures/sketch/frame-2.manifest.json` and `frame-2.config.json`.
 
+- DelaSuko is reference-fixture-only and is not exposed as a built-in or default font.
 - The selected font bytes must match the declared DelaSuko Gothic One Regular SHA-256 before comparison.
 - The shared serializer must emit an 874 × 310 outlined SVG with closed path contours, the fixed reference origin, exact gradient stops, miter joins, black 12 px outside coverage, and white 20 px outside coverage.
 - Chrome rasterizes the generated 874 × 310 SVG at device scale factor 2 into the authoritative 1748 × 620 browser comparison surface.
@@ -115,6 +117,7 @@ The final Frame 2 PNG is the sole visual contract for one named outlined configu
 - The full core journey works without a backend.
 - The exported file opens as valid SVG and retains the visible style.
 - Font changes visibly update the preview and the SVG markup.
+- The initial web and CLI documents use the Japanese system-font stack, fit their content, and contain no DelaSuko dependency.
 - A device or manually entered font family updates the preview and is preserved in exported SVG markup.
 - Outlined export contains reusable SVG path geometry and no `<text>`, `<tspan>`, `font-family`, or embedded font data.
 - At least three gradient stops and two outlines can be active at once.

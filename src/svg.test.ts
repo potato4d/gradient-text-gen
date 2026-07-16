@@ -3,8 +3,10 @@ import test from "node:test";
 import opentype from "opentype.js";
 import {
   MAX_OUTLINES,
+  FONT_OPTIONS,
   createInitialDocument,
   createOutline,
+  createReferenceDocument,
   normalizeHex,
 } from "./editorModel.js";
 import { FRAME_2_OUTSIDE_20_PATH, getFrame2OutsidePath } from "./frame2Calibration.js";
@@ -70,7 +72,7 @@ test("maps a 180 degree gradient from top to bottom", () => {
 });
 
 test("serializes the reference preset with deterministic gradient and outline geometry", () => {
-  const svg = serializeSvg(createInitialDocument());
+  const svg = serializeSvg(createReferenceDocument());
 
   assert.match(svg, /width="\d+" height="\d+" viewBox="0 0 \d+ \d+"/);
   assert.match(svg, /stop-color="#E9F62A"/);
@@ -83,6 +85,18 @@ test("serializes the reference preset with deterministic gradient and outline ge
   assert.match(svg, /stroke-linejoin="miter"/);
   assert.doesNotMatch(svg, /<rect/);
   assert.doesNotMatch(svg, /<!--/);
+});
+
+test("starts with a portable system font while keeping DelaSuko reference-only", () => {
+  const editor = createInitialDocument();
+  const reference = createReferenceDocument();
+
+  assert.equal(editor.typography.fontId, "japanese-sans");
+  assert.doesNotMatch(editor.typography.fontFamily, /DelaSuko/i);
+  assert.deepEqual(editor.frame, { mode: "fit" });
+  assert.equal(FONT_OPTIONS.some((font) => /DelaSuko/i.test(font.family)), false);
+  assert.match(reference.typography.fontFamily, /DelaSuko Gothic One/);
+  assert.equal(reference.frame.mode, "fixed");
 });
 
 test("equivalent settings serialize to byte-identical final SVG content", () => {
