@@ -31,6 +31,19 @@ export interface GradientStop {
   opacity: number;
 }
 
+export interface GradientPresetStop {
+  color: string;
+  offset: number;
+  opacity: number;
+}
+
+export interface GradientPreset {
+  id: string;
+  name: string;
+  angle: number;
+  stops: ReadonlyArray<GradientPresetStop>;
+}
+
 export interface FillLayer {
   id: string;
   enabled: boolean;
@@ -149,13 +162,120 @@ export const createOutline = (index = 0): OutlineLayer => ({
   placement: "outside",
 });
 
-const REFERENCE_STOPS: ReadonlyArray<readonly [string, number]> = [
-  ["#E9F62A", 0],
-  ["#FFF5A0", 26.5679633],
-  ["#EED991", 48.0359484],
-  ["#F0C739", 60.5414117],
-  ["#F1BC15", 100],
+export const GRADIENT_PRESETS: ReadonlyArray<GradientPreset> = [
+  {
+    id: "sunbeam",
+    name: "Sunbeam",
+    angle: 180,
+    stops: [
+      { color: "#E9F62A", offset: 0, opacity: 100 },
+      { color: "#FFF5A0", offset: 26.5679633, opacity: 100 },
+      { color: "#EED991", offset: 48.0359484, opacity: 100 },
+      { color: "#F0C739", offset: 60.5414117, opacity: 100 },
+      { color: "#F1BC15", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "sunset-punch",
+    name: "Sunset Punch",
+    angle: 135,
+    stops: [
+      { color: "#FF3D77", offset: 0, opacity: 100 },
+      { color: "#FF7849", offset: 48, opacity: 100 },
+      { color: "#FFD166", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "electric-iris",
+    name: "Electric Iris",
+    angle: 135,
+    stops: [
+      { color: "#5B5DF5", offset: 0, opacity: 100 },
+      { color: "#A855F7", offset: 52, opacity: 100 },
+      { color: "#FF63C3", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "ocean-drive",
+    name: "Ocean Drive",
+    angle: 135,
+    stops: [
+      { color: "#0057FF", offset: 0, opacity: 100 },
+      { color: "#00B8FF", offset: 50, opacity: 100 },
+      { color: "#67F5D2", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "aurora-mint",
+    name: "Aurora Mint",
+    angle: 135,
+    stops: [
+      { color: "#00A86B", offset: 0, opacity: 100 },
+      { color: "#36D9A0", offset: 48, opacity: 100 },
+      { color: "#C6FF66", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "candy-floss",
+    name: "Candy Floss",
+    angle: 135,
+    stops: [
+      { color: "#FF5FB7", offset: 0, opacity: 100 },
+      { color: "#C66CFF", offset: 50, opacity: 100 },
+      { color: "#6D7CFF", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "ember-glow",
+    name: "Ember Glow",
+    angle: 135,
+    stops: [
+      { color: "#6F1425", offset: 0, opacity: 100 },
+      { color: "#E3422F", offset: 52, opacity: 100 },
+      { color: "#FFB347", offset: 100, opacity: 100 },
+    ],
+  },
+  {
+    id: "silver-ink",
+    name: "Silver Ink",
+    angle: 135,
+    stops: [
+      { color: "#111318", offset: 0, opacity: 100 },
+      { color: "#626A78", offset: 52, opacity: 100 },
+      { color: "#F4F5F7", offset: 100, opacity: 100 },
+    ],
+  },
 ];
+
+export function applyGradientPreset(fill: FillLayer, preset: GradientPreset): FillLayer {
+  const finalStop = preset.stops[preset.stops.length - 1];
+  return {
+    ...fill,
+    name: preset.name,
+    type: "linear",
+    color: finalStop?.color ?? fill.color,
+    angle: preset.angle,
+    stops: preset.stops.map((stop) => createStop(stop.color, stop.offset, stop.opacity)),
+  };
+}
+
+export function matchesGradientPreset(fill: FillLayer, preset: GradientPreset): boolean {
+  if (fill.type !== "linear" || fill.angle !== preset.angle || fill.stops.length !== preset.stops.length) {
+    return false;
+  }
+
+  const orderedStops = [...fill.stops].sort((left, right) => left.offset - right.offset);
+  const orderedPresetStops = [...preset.stops].sort((left, right) => left.offset - right.offset);
+  return orderedStops.every((stop, index) => {
+    const presetStop = orderedPresetStops[index];
+    return (
+      presetStop !== undefined &&
+      normalizeHex(stop.color) === presetStop.color &&
+      stop.offset === presetStop.offset &&
+      stop.opacity === presetStop.opacity
+    );
+  });
+}
 
 export const createReferenceFrame = (): SvgFrame => ({
   mode: "fixed",
@@ -188,12 +308,14 @@ export const createReferenceDocument = (): EditorDocument => ({
     {
       id: uid("fill"),
       enabled: true,
-      name: "Sunbeam",
+      name: GRADIENT_PRESETS[0].name,
       type: "linear",
-      color: "#F1BC15",
+      color: GRADIENT_PRESETS[0].stops.at(-1)?.color ?? "#F1BC15",
       opacity: 100,
-      angle: 180,
-      stops: REFERENCE_STOPS.map(([color, offset]) => createStop(color, offset)),
+      angle: GRADIENT_PRESETS[0].angle,
+      stops: GRADIENT_PRESETS[0].stops.map((stop) =>
+        createStop(stop.color, stop.offset, stop.opacity),
+      ),
     },
   ],
   outlines: [
@@ -243,7 +365,10 @@ export function normalizeHex(value: string, fallback = "#000000"): string {
   return fallback;
 }
 
-export function gradientCss(stops: GradientStop[], angle = 90): string {
+export function gradientCss(
+  stops: ReadonlyArray<Pick<GradientStop, "color" | "offset" | "opacity">>,
+  angle = 90,
+): string {
   const list = [...stops]
     .sort((a, b) => a.offset - b.offset)
     .map(

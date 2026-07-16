@@ -22,13 +22,16 @@ import {
 import type { LucideIcon } from "lucide-react";
 import {
   FONT_OPTIONS,
+  GRADIENT_PRESETS,
   MAX_OUTLINES,
+  applyGradientPreset,
   clamp,
   createFill,
   createInitialDocument,
   createOutline,
   gradientCss,
   insertStop,
+  matchesGradientPreset,
   normalizeHex,
   swapById,
   type EditorDocument,
@@ -652,6 +655,31 @@ function FillEditor({ fill, onChange }: FillEditorProps) {
             {label}
           </button>
         ))}
+      </div>
+
+      <div className="gradient-presets">
+        <FieldLabel value={`${GRADIENT_PRESETS.length} presets`}>Quick gradients</FieldLabel>
+        <div className="gradient-preset-grid" role="group" aria-label="Quick gradient presets">
+          {GRADIENT_PRESETS.map((preset) => {
+            const isActive = matchesGradientPreset(fill, preset);
+            return (
+              <button
+                className={`gradient-preset ${isActive ? "is-active" : ""}`}
+                type="button"
+                key={preset.id}
+                aria-label={`Apply ${preset.name} gradient`}
+                aria-pressed={isActive}
+                onClick={() => onChange(applyGradientPreset(fill, preset))}
+              >
+                <span
+                  className="gradient-preset-swatch"
+                  style={{ background: gradientCss(preset.stops, preset.angle) }}
+                />
+                <span className="gradient-preset-name">{preset.name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {fill.type === "linear" ? (

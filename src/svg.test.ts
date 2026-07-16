@@ -4,6 +4,8 @@ import opentype from "opentype.js";
 import {
   MAX_OUTLINES,
   FONT_OPTIONS,
+  GRADIENT_PRESETS,
+  applyGradientPreset,
   createInitialDocument,
   createOutline,
   createReferenceDocument,
@@ -107,6 +109,19 @@ test("equivalent settings serialize to byte-identical final SVG content", () => 
   assert.notEqual(first.outlines[0].id, second.outlines[0].id);
   assert.equal(serializeSvg(first), serializeSvg(second));
   assert.equal(serializeSvg(first), serializeSvg(first));
+});
+
+test("quick gradient applications remain byte-identical despite fresh stop IDs", () => {
+  const first = createInitialDocument();
+  const second = createInitialDocument();
+  const preset = GRADIENT_PRESETS[5];
+  assert.ok(preset);
+
+  first.fills[0] = applyGradientPreset(first.fills[0], preset);
+  second.fills[0] = applyGradientPreset(second.fills[0], preset);
+
+  assert.notEqual(first.fills[0].stops[0]?.id, second.fills[0].stops[0]?.id);
+  assert.equal(serializeSvg(first), serializeSvg(second));
 });
 
 test("supports zero outlines and at least ten outline layers", () => {
