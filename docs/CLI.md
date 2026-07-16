@@ -36,7 +36,7 @@ gradient-text-gen \
   --stop "#F4FF77@100" \
   --angle 135 \
   --outline "#000000@6:outside" \
-  --outline "#FFFFFF@4:outside" \
+  --outline "#FFFFFF@10:outside" \
   --output gradient.svg
 ```
 
@@ -74,6 +74,8 @@ gradient-text-gen \
 
 Outlined export supports OTF, TTF, and WOFF input. It fails when the font file is invalid or lacks a required glyph. The font file path and binary are never included in the SVG, so the same file bytes and editor settings produce the same output regardless of the input path.
 
+Outlined geometry is determined by the exact font-file bytes. A family name or CSS weight alone does not identify the selected outline face. When the parsed file reports a different weight, its embedded weight is authoritative for path output.
+
 ## Argument Formats
 
 Gradient stops use:
@@ -90,6 +92,8 @@ Outlines use:
 
 Both options are repeatable. At least two stops are required when overriding the gradient, and at most twelve outlines are accepted.
 
+For `outside`, size is the absolute distance from the glyph edge. For example, `#FFFFFF@20:outside` produces 20 px of outside coverage and is serialized as a 40 px centered stroke behind the base fill.
+
 ## JSON Configuration
 
 Use `--config settings.json` with a partial configuration object:
@@ -99,15 +103,34 @@ Use `--config settings.json` with a partial configuration object:
   "text": "Config driven",
   "fontFamily": "'Avenir Next', sans-serif",
   "textToPath": "./fonts/Brand-Regular.otf",
-  "weight": 900,
-  "size": 164,
-  "tracking": -4,
-  "lineHeight": 0.95,
+  "weight": 400,
+  "size": 155,
+  "tracking": 0,
+  "lineHeight": 1,
   "angle": 180,
   "fillOpacity": 100,
-  "stops": ["#E9F62A@0", "#FFF5A0@27", "#F1BC15@100"],
-  "outlines": ["#050505@6:outside", "#FFFFFF@4:outside"]
+  "stops": ["#E9F62A@0", "#FFF5A0@26.5679633", "#F1BC15@100"],
+  "outlines": ["#000000@12:outside", "#FFFFFF@20:outside"]
 }
 ```
 
+JSON configuration also accepts a deterministic frame:
+
+```json
+{
+  "frame": {
+    "mode": "fixed",
+    "width": 874,
+    "height": 310,
+    "originX": 44.995,
+    "baselineY": 234.835,
+    "glyphOffsets": [{ "x": 0, "y": 0 }]
+  }
+}
+```
+
+Use `{ "frame": { "mode": "fit" } }` for content-derived bounds. When text or typography differs from the starter preset and no frame is supplied, the CLI selects `fit` automatically. Optional per-glyph offsets are intended for deterministic import/reference calibration, not font shaping.
+
 Command-line options override config values. The resulting SVG contains no timestamps, random identifiers, comments, or operation history.
+
+SVG file and standard-output modes emit the serializer's canonical UTF-8 bytes without adding or removing whitespace at end of file.

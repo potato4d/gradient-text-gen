@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createDocumentFromOptions, parseConfig } from "../src/cli.js";
+import { createInitialDocument } from "../src/editorModel.js";
 import { serializeSvgAsPaths } from "../src/svg.js";
 import {
   getOutlineFontFamily,
@@ -88,6 +89,14 @@ if (getOutlineFontWeight(font) !== manifest.font.weight) {
 const config = parseConfig(JSON.parse(await readFile(configPath, "utf8")) as unknown);
 const editor = createDocumentFromOptions(config);
 const svg = serializeSvgAsPaths(editor, font);
+const webPresetSvg = serializeSvgAsPaths(createInitialDocument(), font);
+const repeatedWebPresetSvg = serializeSvgAsPaths(createInitialDocument(), font);
+if (svg !== webPresetSvg || webPresetSvg !== repeatedWebPresetSvg) {
+  throw new Error("Equivalent web preset, CLI config, and repeated exports are not byte-identical");
+}
+if (svg.endsWith("\n")) {
+  throw new Error("Canonical SVG bytes must not include a trailing newline");
+}
 const pathData = /<path id="text-path" d="([^"]+)"/.exec(svg)?.[1] ?? "";
 const moves = (pathData.match(/M/g) ?? []).length;
 const closes = (pathData.match(/Z/g) ?? []).length;
@@ -171,6 +180,8 @@ process.stdout.write(
       alphaBounds,
       normalizedRmse,
       maximumNormalizedRmse: manifest.comparison.maximumNormalizedRmse,
+      canonicalBytes: Buffer.byteLength(svg),
+      webCliByteIdentical: true,
       svg: actualSvgPath,
       png: actualPngPath,
       diff: diffPngPath,

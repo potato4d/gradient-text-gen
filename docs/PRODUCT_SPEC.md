@@ -6,7 +6,8 @@ Build a browser-based editor that lets creators compose stylized text, preview i
 
 ## Visual References
 
-- `/Users/potato4d/Desktop/Frame 2.svg`: layered output with a multi-stop yellow gradient, a white outer outline, and a black inner outline.
+- `test/fixtures/sketch/frame-2.svg`: layered vector source with a multi-stop yellow gradient, a white outer outline, and a black inner outline.
+- `test/fixtures/sketch/frame-2@2x.png`: canonical Sketch-rendered visual oracle for the Frame 2 preset.
 - `image-1.png`: compact dark color editor with an editable stop rail, a two-dimensional color field, hue control, and direct color values.
 - `image-2.png`: layered fill and border controls with enable toggles, previews, opacity, border placement, and width.
 
@@ -57,16 +58,18 @@ The references define the interaction density and output capabilities. The appli
 - Zero to twelve outline layers, exceeding the required ten-layer minimum.
 - Enable/disable, add, remove, and reorder controls.
 - Per-layer color, thickness, opacity, and `outside` / `center` / `inside` placement controls.
-- Layer ordering must produce a result comparable to the reference SVG.
+- Outside size is the absolute distance from the glyph edge. A 20 px outside outline therefore serializes as a 40 px centered SVG stroke behind the fill.
+- Layer ordering, miter joins, and the final base-path fill must reproduce the canonical Sketch oracle within its pinned comparison threshold.
 
 ### Preview and Export
 
 - Live SVG preview.
 - Transparent checkerboard, light, and dark preview surfaces.
 - Zoom-to-fit behavior for long or multiline text.
+- A visible canvas mode selects the fixed Frame 2 reference artboard or content-derived fit bounds. Editing text or typography switches to fit bounds automatically.
 - SVG download with a safe filename.
 - Copy SVG source to the clipboard.
-- Reset to the reference-inspired starter preset.
+- Reset to the canonical Frame 2 starter preset.
 - Deterministic serialization: identical visible settings must produce identical final SVG file content, excluding comments.
 
 ### Command Line
@@ -96,6 +99,16 @@ The references define the interaction density and output capabilities. The appli
 - Reduced-motion support.
 - Sufficient contrast for small controls and disabled states.
 
+## Canonical Visual Oracle
+
+The Frame 2 fixture is the exact visual contract for one named outlined configuration. Its config, source SVG, Sketch PNG, font fingerprint, dimensions, rasterizer, comparison metric, and threshold are declared once in `test/fixtures/sketch/frame-2.manifest.json` and `frame-2.config.json`.
+
+- The selected font bytes must match the declared DelaSuko Gothic One Regular SHA-256 before comparison.
+- The shared serializer must emit an 874 × 310 outlined SVG with closed path contours, the fixed reference origin, exact gradient stops, miter joins, black 12 px outside coverage, and white 20 px outside coverage.
+- macOS ImageIO rasterizes the generated SVG to a transparent 1748 × 620 PNG.
+- ImageMagick compares RGBA pixels with normalized RMSE at or below the manifest threshold and requires the exact declared alpha bounds.
+- Exact zero-error pixels across Sketch and another SVG rasterizer are a non-goal because edge antialiasing and gradient quantization differ. Embedding the PNG to force zero error is prohibited; the delivered artifact remains vector SVG.
+
 ## Acceptance Criteria
 
 - The full core journey works without a backend.
@@ -107,5 +120,8 @@ The references define the interaction density and output capabilities. The appli
 - The editor supports no outline and at least ten concurrent outline layers.
 - Repeated SVG generation from equivalent settings produces byte-identical markup because internal editor IDs and operation history are excluded.
 - Equivalent CLI and web settings produce byte-identical SVG markup.
+- CLI file/stdout, browser preview, clipboard, and download use the same canonical UTF-8 SVG bytes without adding an end-of-file newline.
+- In outlined mode, the preview renders the same path-based markup and dimensions used for copy and download.
+- The canonical Frame 2 visual verification passes the manifest dimensions, alpha bounds, and ImageMagick RMSE threshold.
 - Desktop and 390 px mobile browser checks pass without clipped primary controls.
 - Production build succeeds and design QA reports `final result: passed`.

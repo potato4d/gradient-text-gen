@@ -8,6 +8,7 @@ Run the full local verification set from the repository root:
 npm run typecheck
 npm test
 npm run build
+npm run test:visual
 git diff --check
 ```
 
@@ -31,7 +32,24 @@ The automated test `equivalent settings serialize to byte-identical final SVG co
 
 The CLI test suite repeats the same guarantee for two documents created from equivalent CLI options. The smoke check writes two SVG files with identical options and compares them byte for byte.
 
-The outlined serializer test uses a generated fixture font and requires equivalent documents with different internal IDs to produce byte-identical SVG. It also verifies that the file contains one reusable path definition, preserves outside/center/inside layers, excludes font dependencies, and contains no invalid numeric values. A CLI smoke check generates the same outlined SVG twice from one system font file and compares the files byte for byte.
+The outlined serializer test uses a generated fixture font and requires equivalent documents with different internal IDs to produce byte-identical SVG. It also verifies that the file contains one reusable path definition, preserves outside/center/inside layers, excludes font dependencies, and contains no invalid numeric values. The Sketch oracle script exercises outlined generation with the authorized reference font and verifies the resulting visual artifact.
+
+CLI file output is compared directly with the in-memory web serializer string. The test also requires the canonical no-trailing-newline policy.
+
+## Sketch Pixel Oracle
+
+Run the canonical visual gate on macOS:
+
+```bash
+GRADIENT_TEXT_GEN_REFERENCE_FONT="$HOME/Library/Fonts/DelaSukoGothicOne-R.otf" \
+  npm run test:visual
+```
+
+The script validates the checked-in fixture and font hashes, requires the web starter preset, equivalent CLI config, and repeated exports to be byte-identical without a trailing newline, rasterizes the outlined SVG through macOS ImageIO at 2x, and invokes ImageMagick RGBA comparison. Dimensions, alpha bounds, and the maximum normalized RMSE come from `test/fixtures/sketch/frame-2.manifest.json`.
+
+The PNG oracle came from Sketch. Sketch and ImageIO do not quantize gradients and antialiased edges identically, so `AE = 0` is not a valid pure-vector cross-renderer requirement. The gate instead uses a tightly bounded RMSE plus exact geometry bounds. A raster image must never be embedded in the SVG to satisfy the gate.
+
+Use `npm run verify` for the full local release gate. The visual step fails clearly when the authorized reference font, `sips`, or ImageMagick is unavailable.
 
 ## Browser Verification Matrix
 

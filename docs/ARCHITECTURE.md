@@ -19,6 +19,7 @@ document
 ├── typography: family, weight, size, lineHeight, letterSpacing
 ├── fills[]: id, enabled, type, opacity, angle, color, stops[]
 ├── outlines[]: id, enabled, color, width, opacity, placement
+├── frame: fit or fixed width, height, origin, baseline, glyph calibration
 └── preview: background, zoom
 ```
 
@@ -26,15 +27,18 @@ Every visible control updates this document. Preview markup and downloaded SVG m
 
 The CLI starts with the same document preset, applies validated command-line or JSON overrides, and calls the same serializer. Transient IDs are never included in SVG output.
 
+The reference preset starts on its pinned 874 × 310 artboard. Web text/font/typography edits and CLI geometry overrides switch to `fit` unless a fixed frame is explicitly selected, preventing ordinary long or multiline content from inheriting the Sketch calibration and clipping.
+
 Installed font discovery is user-initiated because browsers require explicit permission. `localFonts.ts` converts Local Font Access results into deduplicated family options and safely quotes family names for CSS/SVG use. The editor always retains manual family-name entry as a capability and permission fallback.
 
-Outlined export keeps parsed font data outside the serializable editor document. The browser may read bytes from an authorized `FontData.blob()` or a user-selected OTF, TTF, or WOFF file; the CLI requires an explicit file path. `textToPath.ts` lays out glyph paths with font metrics, kerning, tracking, and multiline baselines. The SVG stores the combined geometry once in `<defs>` and reuses it for every fill and outline layer.
+Outlined export keeps parsed font data outside the serializable editor document. The browser may read bytes from an authorized `FontData.blob()` or a user-selected OTF, TTF, or WOFF file; the CLI requires an explicit file path. `textToPath.ts` lays out glyph paths with font metrics, kerning, tracking, alignment, and multiline baselines. It closes CFF contours before stroking, treats the parsed font file's weight as authoritative, and separates fit bounds from an optional fixed reference frame. The SVG stores the combined geometry once in `<defs>` and reuses it for every fill and outline layer.
 
 ## Rendering Strategy
 
 - Measure the text in the browser to derive a padded SVG view box.
 - Render the outermost outlines first as repeated SVG `<text>` elements.
-- Build outside rings from cumulative thicknesses, use native centered strokes for `center`, and clip doubled strokes to glyph shapes for `inside`.
+- Treat each outside size as an absolute glyph-edge distance and render it as a doubled centered stroke behind the fill. Use native centered strokes for `center`, and clip doubled strokes to glyph shapes for `inside`.
+- Use miter joins and butt caps so sharp corners match the Sketch reference.
 - Render fill layers above outlines as repeated `<text>` elements with gradient or solid paint.
 - Create one SVG `<linearGradient>` definition per enabled gradient fill.
 - Use `paint-order: stroke fill` so wide strokes do not eat into the fill.
@@ -45,12 +49,13 @@ Outlined export keeps parsed font data outside the serializable editor document.
 - Serialize a standalone SVG string from the editor document.
 - Generate stable paint and clip IDs from rendered array positions rather than transient editor IDs.
 - Omit timestamps, random values, comments, and operation history so equivalent visible settings are byte-identical.
-- Quantize generated glyph path coordinates to three decimal places and derive outlined view boxes from font metrics and glyph bounds.
+- Quantize generated glyph path coordinates to six decimal places. Fit frames use font metrics and glyph bounds; fixed frames preserve explicit dimensions and placement.
 - Reject outlined export when any non-whitespace glyph is unavailable instead of silently substituting a different font.
 - Include the selected CSS font-family value and typography attributes on every text node.
 - Escape text content before serialization.
 - Use a Blob URL for download and revoke it immediately afterward.
-- Use the same serializer for the clipboard action and download action.
+- Use the same serializer result for outlined preview, clipboard, download, CLI stdout, and CLI file output.
+- Emit the serializer string as canonical UTF-8 bytes without appending a trailing newline.
 
 ## Component Boundaries
 
@@ -90,6 +95,7 @@ The worker delegates static requests to the platform asset binding. Requests tha
 - Unit tests for CLI parsing, color normalization, gradient coordinate math, text escaping, outline placement, and SVG serialization.
 - A determinism test creates equivalent documents with different internal IDs and requires exactly equal SVG strings.
 - CLI smoke checks generate the same file twice and compare it byte for byte.
+- A checked-in Sketch oracle gate validates fixture/font hashes, raster dimensions, alpha bounds, and normalized RGBA RMSE through macOS ImageIO and ImageMagick.
 - Production build verification.
 - Browser checks for the complete edit-to-export journey.
 - Visual captures at desktop and 390 x 844 mobile viewports.

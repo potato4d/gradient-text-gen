@@ -17,3 +17,6 @@ When implementing from a selected generated mock, treat that image as the source
 - Support desktop and 390 px-wide mobile layouts without horizontal page overflow.
 - Keep the application, shared SVG model, tests, and CLI in strict TypeScript.
 - The web editor and CLI must share the same deterministic SVG serializer.
+- Treat `test/fixtures/sketch/frame-2@2x.png` as the canonical visual oracle for the Frame 2 preset. The companion SVG is structural evidence, not the final paint authority.
+- Outside outline sizes are absolute distances from the glyph edge. The canonical preset uses black 12 px and white 20 px with miter joins.
+- Verify the canonical preset at 2x with macOS ImageIO and ImageMagick using the thresholds in `frame-2.manifest.json`; exact zero-error pixels are not portable across Sketch and other SVG rasterizers.
